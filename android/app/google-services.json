@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "583080173476",
+    "project_id": "ecma-1d502",
+    "storage_bucket": "ecma-1d502.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:583080173476:android:4f952d1ef55551ddb46b31",
+        "android_client_info": {
+          "package_name": "com.example.ecma"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDHArqmxl3yrvPdnLMhuTlAldHnizJG-6g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
