@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'register.dart';
 import 'login.dart';
+import 'scanner_page.dart';
+import 'bubble_sheet_generator.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
-
 
   @override
   Widget build(BuildContext context) {
@@ -60,7 +61,49 @@ class HomePage extends StatelessWidget {
                   child: const Text("Sign In"),
                 ),
                 const SizedBox(height: 16.0),
-
+                // Scanner button
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => ScannerPage()),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    minimumSize: const Size(double.infinity, 48),
+                  ),
+                  child: const Text(
+                    "Start Scanning",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16.0),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const BubbleSheetGenerator()),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    minimumSize: const Size(double.infinity, 48),
+                  ),
+                  child: const Text(
+                    "Create Answer Sheet",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16.0),
                 ElevatedButton(
                   onPressed: () {
                     Navigator.push(
