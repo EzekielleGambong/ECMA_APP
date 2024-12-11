@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 
 class AnalysisInfo extends StatefulWidget {
   final String analysisId;
-  const AnalysisInfo({Key? key, required this.analysisId}) : super(key: key);
+  final String subjectName;
+
+  const AnalysisInfo({Key? key, required this.analysisId, required this.subjectName}) : super(key: key);
 
   @override
   _AnalysisInfoState createState() => _AnalysisInfoState();
@@ -55,7 +57,7 @@ class _AnalysisInfoState extends State<AnalysisInfo> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Analysis Info'),
+        title: Text('Analysis Info: ${widget.subjectName}'),
       ),
       body: isLoading
           ? Center(child: CircularProgressIndicator())

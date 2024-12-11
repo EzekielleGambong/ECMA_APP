@@ -1,156 +1,84 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:ecma/pages/add_student.dart';
-import 'package:ecma/pages/home.dart';
-import 'edit_student.dart';
+import 'add_student.dart';
+import 'home.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'welcome.dart';
 
+import 'analysisInfo.dart';
 
-
-class studentData {
-  final String id;
-  final String name;
-  final String examType;
-
-  final String SubjectCode;
-
-  studentData(
-      {required this.id,
-      required this.examType,
-      required this.name,
-      required this.SubjectCode});
-
-  factory studentData.fromFireStore(DocumentSnapshot doc) {
-    Map<String, dynamic> dataSubject = doc.data() as Map<String, dynamic>;
-
-    return studentData(
-        id: doc.id,
-        name: dataSubject['name'],
-        examType: dataSubject['examType'],
-        SubjectCode: dataSubject['subjectCode']);
-  }
-
-  Map<String, dynamic> toFireStore() {
-    return {
-      'id': id,
-      'examType': examType,
-      'subjectCode': SubjectCode,
-      'name': name
-    };
-  }
-}
-
-class StudentList extends StatelessWidget {
-  const StudentList({Key? key}) : super(key: key);
+class StudentList extends StatefulWidget {
+  const StudentList({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Subject List',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        scaffoldBackgroundColor: Colors.white,
-        appBarTheme: const AppBarTheme(
-          systemOverlayStyle: SystemUiOverlayStyle.dark,
-        ),
-      ),
-      home: SubjectListScreen(),
-    );
-  }
+  State<StudentList> createState() => _StudentListState();
 }
 
-class SubjectListScreen extends StatefulWidget {
-  const SubjectListScreen({Key? key}) : super(key: key);
-
-  @override
-  _SubjectListScreenState createState() => _SubjectListScreenState();
-}
-
-class _SubjectListScreenState extends State<SubjectListScreen> {
-  final _firestore = FirebaseFirestore.instance;
-  String _searchQuery = '';
-
-  Stream<List<studentData>> studentList() {
-    return _firestore
-        .collection('students')
-        .snapshots()
-        .map((QuerySnapshot snapshot) {
-      return snapshot.docs
-          .map((doc) => studentData.fromFireStore(doc))
-          .toList();
-    });
-  }
+class _StudentListState extends State<StudentList> {
+  final user = FirebaseAuth.instance.currentUser!;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () {
-             Navigator.push(context, MaterialPageRoute(builder: (context)=> WelcomePage()));
-          },
-        ),
-        title: const Text(
-          'List of Students',
-          style: TextStyle(
-            color: Colors.black,
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
+        title: const Text('Student List'),
+        actions: <Widget>[
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Logout',
+            onPressed: () {
+              FirebaseAuth.instance.signOut();
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) {
+                    return HomePage();
+                  },
+                ),
+              );
+            },
           ),
-        ),
+        ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32.0),
+      body: Center(
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const SizedBox(height: 16),
-            SearchBar(
-              onChanged: (value) {
-                setState(() {
-                  _searchQuery = value.toLowerCase();
-                });
-              },
-            ),
-            const SizedBox(height: 16),
+            Text('signed in as: ' + user.email!),
             Expanded(
-              child: StreamBuilder<List<studentData>>(
-                stream: studentList(),
+              child: StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('students')
+                    .where('user_email', isEqualTo: user.email)
+                    .snapshots(),
                 builder: (context, snapshot) {
                   if (snapshot.hasError) {
-                    return Center(child: Text('Error: ${snapshot.error}'));
+                    return Text('Error: ${snapshot.error}');
                   }
 
                   if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
+                    return const CircularProgressIndicator();
                   }
 
-           
-                  final students = snapshot.data;
+                  final studentDocs = snapshot.data!.docs;
 
-                  if (students == null || students.isEmpty) {
-                    return const Center(child: Text('No students available'));
-                  }
-
-           
-                  final filteredStudents = students.where((student) {
-             
-                    return student.name.toLowerCase().contains(_searchQuery) ||
-                           student.SubjectCode.toLowerCase().contains(_searchQuery) ||
-                           student.examType.toLowerCase().contains(_searchQuery);
-                  }).toList();
-
-                
                   return ListView.builder(
-                    itemCount: filteredStudents.length,
+                    itemCount: studentDocs.length,
                     itemBuilder: (context, index) {
-                      final student = filteredStudents[index];
-                      return SubjectListTile(
-                        subjectCode: student.name,
-                        studentkey: student.id,
+                      final studentData = studentDocs[index].data() as Map<String, dynamic>;
+                      // Assuming each student has a 'subjects' field which is a list of maps
+                      final subjects = studentData['subjects'] as List<dynamic>? ?? [];
+                      return ExpansionTile(
+                        title: Text(studentData['student_name'] ?? 'N/A'),
+                        subtitle: Text(
+                            'ID: ${studentData['student_id'] ?? 'N/A'}, Course: ${studentData['student_course'] ?? 'N/A'}'),
+                        children: [
+                          for (final subject in subjects)
+                            SubjectListTile(
+                              subjectName: subject['subjectName'] ?? 'N/A',
+                              subjectCode: subject['subjectCode'] ?? 'N/A',
+                              subjectDescription: subject['subjectDescription'] ?? 'N/A',
+                            ),
+                        ],
                       );
                     },
                   );
@@ -160,102 +88,85 @@ class _SubjectListScreenState extends State<SubjectListScreen> {
           ],
         ),
       ),
-      floatingActionButton: Container(
-        margin: const EdgeInsets.only(right: 16.0, bottom: 16.0),
-        child: FloatingActionButton(
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) {
+                return const AddStudent();
+              },
+            ),
+          );
+        },
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+}
+
+class SubjectListTile extends StatelessWidget {
+  final String subjectName;
+  final String subjectCode;
+  final String subjectDescription;
+
+  const SubjectListTile({
+    super.key,
+    required this.subjectName,
+    required this.subjectCode,
+    required this.subjectDescription,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.all(8.0),
+      child: ListTile(
+        title: Text(subjectName),
+        subtitle: Text('$subjectCode\n$subjectDescription'),
+        trailing: IconButton(
+          icon: const Icon(Icons.delete),
           onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => AddStudent()),
+            // Show a confirmation dialog
+            showDialog(
+              context: context,
+              builder: (BuildContext context) {
+                return AlertDialog(
+                  title: const Text('Confirm Delete'),
+                  content: const Text('Are you sure you want to delete this subject?'),
+                  actions: <Widget>[
+                    TextButton(
+                      child: const Text('Cancel'),
+                      onPressed: () {
+                        Navigator.of(context).pop(); // Close the dialog
+                      },
+                    ),
+                    TextButton(
+                      child: const Text('Delete'),
+                      onPressed: () {
+                        // TODO: Implement delete functionality
+                        // This is where you would delete the subject from the database
+                        // After deleting, you might want to refresh the list of subjects
+                        Navigator.of(context).pop(); // Close the dialog
+                      },
+                    ),
+                  ],
+                );
+              },
             );
           },
-          child: Container(
-            padding: const EdgeInsets.all(8.0),
-            child: const Icon(
-              Icons.add,
-              color: Colors.white,
-              size: 32,
-            ),
-          ),
-          backgroundColor: const Color(0xFF00BF6D),
-          elevation: 4,
         ),
-      ),
-    );
-  }
-}
-
-class SearchBar extends StatelessWidget {
-  final Function(String) onChanged;
-
-  const SearchBar({Key? key, required this.onChanged}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.grey[200],
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: TextField(
-        decoration: InputDecoration(
-          hintText: 'Search Students',
-          prefixIcon: const Icon(Icons.search, color: Colors.grey),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 12),
-        ),
-        onChanged: onChanged,
-      ),
-    );
-  }
-}
-class SubjectListTile extends StatelessWidget {
-  final String subjectCode;
-  final String studentkey;
-   SubjectListTile({Key? key, required this.subjectCode, required this.studentkey}): super(key: key);
-        final _firestore = FirebaseFirestore.instance;
-       void _showOptionDialog(BuildContext context,String studentId){
-      showDialog(context: context,
-      builder: (context)=> AlertDialog(
-        title: const Text('Select an Action'),
-        content: const Text('Do you want to Edit or Delete this Item'),
-        actions: [
-          TextButton(onPressed: (){
-
-                Navigator.push(context, MaterialPageRoute(builder: (context)=> UpdateStudent(studentId: studentId)));
-
-          }, child: Text('Edit')),
-
-          TextButton(onPressed: (){
-              
-              _firestore.collection('students').doc(studentId).delete();
-
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Successfully Deleted a Student'),backgroundColor:Colors.green,));
-                Navigator.of(context).pop();
-          }, child: const Text('Delete'))
-        ],
-
-  ));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Colors.grey, width: 0.5)),
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(vertical: 4),
-        title: Text(
-          subjectCode,
-          style: const TextStyle(
-            fontWeight: FontWeight.w500,
-            fontSize: 16,
-          ),
-        ),
-        trailing: const Icon(Icons.chevron_right, color: Colors.grey),
         onTap: () {
-          _showOptionDialog(context,studentkey);
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) {
+                return AnalysisInfo(
+                  subjectName: subjectName, analysisId: '',
+                );
+              },
+            ),
+          );
         },
       ),
     );

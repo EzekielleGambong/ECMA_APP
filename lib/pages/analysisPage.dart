@@ -6,21 +6,20 @@ import 'package:flutter/material.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:image_picker/image_picker.dart';
 
-class analysisPage extends StatefulWidget {
-  const analysisPage({Key? key}) : super(key: key);
+class AnalysisPage extends StatefulWidget {
+  const AnalysisPage({Key? key}) : super(key: key);
 
   @override
   AnalysisPageState createState() => AnalysisPageState();
 }
 
-class AnalysisPageState extends State<analysisPage> {
+class AnalysisPageState extends State<AnalysisPage> {
  final ImagePicker _picker = ImagePicker();
 
    String? totalquestions;
    String? average_correct_rate;
    String? most_challenging_questions;
    String? potential_learning_gaps;
-
 
   List<File>? imageFiles = [];
   String? contentResponse;
@@ -29,7 +28,6 @@ class AnalysisPageState extends State<analysisPage> {
   List<String> selectedSubjectCode = [];
   List<String > answerKey = [];
   final _firestore = FirebaseFirestore.instance;
-
 
   Future<void> fetchSubjects() async{
       try{
@@ -67,7 +65,6 @@ class AnalysisPageState extends State<analysisPage> {
         }
   }
 
-
   Future<void> _uploadMultipleImage() async {
     final List<XFile>? pickedFiles = await _picker.pickMultiImage();
     
@@ -97,7 +94,7 @@ Future<void> analysis() async {
   });
 
   try {
-    const apiKey = 'AIzaSyBwQOMb7dwidhYKCitrxFgqKmmA0pmJfG8'; // Replace with your actual API key
+    const apiKey = 'YOUR_API_KEY'; // Replace with your actual API key
     
     List<Uint8List> imageListBytes = await Future.wait(
       imageFiles!.map((file) => file.readAsBytes())
@@ -320,7 +317,6 @@ Widget build(BuildContext context) {
   );
 }
 
-
 Widget _buildDropdown({
   required String hint,
   required List<String> items,
@@ -360,7 +356,6 @@ Widget _buildDropdown({
   );
 }
 
-
 Widget _buildSubjectDropdown() {
   return _buildDropdown(
     hint: 'Select Subject Code',
@@ -372,7 +367,6 @@ Widget _buildSubjectDropdown() {
     },
   );
 }
-
 
 Widget _buildImageGridView() {
   if (imageFiles == null || imageFiles!.isEmpty) {
@@ -398,7 +392,6 @@ Widget _buildImageGridView() {
     },
   );
 }
-
 
 Widget _buildImageThumbnail(int index) {
   return Stack(
@@ -435,7 +428,6 @@ Widget _buildImageThumbnail(int index) {
   );
 }
 
-
 Widget _buildAnalysisButton() {
   return ElevatedButton.icon(
     onPressed: (imageFiles != null && imageFiles!.isNotEmpty && selectSubject != null) 
@@ -460,7 +452,6 @@ Widget _buildAnalysisButton() {
     ),
   );
 }
-
 
 Widget _buildAnalysisResults() {
   if (contentResponse == null) {
@@ -494,7 +485,6 @@ Widget _buildAnalysisResults() {
 
 
 }
-
 
 Widget _buildResultRow(String label, String? value) {
   return Padding(

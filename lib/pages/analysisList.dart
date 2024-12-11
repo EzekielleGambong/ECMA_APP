@@ -1,217 +1,173 @@
-
-
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:ecma/pages/analysisInfo.dart';
-import 'package:ecma/pages/analysisPage.dart';
-import 'package:ecma/pages/edit_student.dart';
-import 'package:ecma/pages/welcome.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'analysisInfo.dart';
+import 'analysisPage.dart';
+import 'edit_student.dart';
+import 'welcome.dart';
 
-class analysisList extends StatelessWidget  {
-    const analysisList ({Key? key});
-
-  
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Analysis List',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        scaffoldBackgroundColor: Colors.white,
-        appBarTheme: const AppBarTheme(
-          systemOverlayStyle: SystemUiOverlayStyle.dark,
-        ),
-      ),
-      home: SubjectListScreen(),
-    );
-  }
-}
-
-class SubjectListScreen extends StatefulWidget {
-  const SubjectListScreen({Key? key}) : super(key: key);
+class analysisList extends StatefulWidget {
+  const analysisList({super.key});
 
   @override
-  _SubjectListScreenState createState() => _SubjectListScreenState();
+  State<analysisList> createState() => _analysisListState();
 }
 
-class _SubjectListScreenState extends State<SubjectListScreen> {
-  final _firestore = FirebaseFirestore.instance;
-  String _searchQuery = '';
+class _analysisListState extends State<analysisList> {
+  final user = FirebaseAuth.instance.currentUser!;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () {
-             Navigator.push(context, MaterialPageRoute(builder: (context)=> WelcomePage()));
-          },
-        ),
-        title: const Text(
-          'List of Analysis',
-          style: TextStyle(
-            color: Colors.black,
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
+        title: const Text('Analysis List'),
+        actions: <Widget>[
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Logout',
+            onPressed: () {
+              FirebaseAuth.instance.signOut();
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) {
+                    return const WelcomePage();
+                  },
+                ),
+              );
+            },
           ),
-        ),
+        ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32.0),
+      body: Center(
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const SizedBox(height: 16),
-            SearchBar(
-              onChanged: (value) {
-                setState(() {
-                  _searchQuery = value.toLowerCase();
-                });
-              },
-            ),
-            const SizedBox(height: 16),
+            Text('signed in as: ' + user.email!),
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
-                stream: _firestore.collection('exam_detailed_analyses').snapshots(), 
-                builder: (BuildContext context, AsyncSnapshot<QuerySnapshot> snapshot) {
+                stream: FirebaseFirestore.instance
+                    .collection('exam_detailed_analyses')
+                    .where('user_email', isEqualTo: user.email)
+                    .snapshots(),
+                builder: (context, snapshot) {
                   if (snapshot.hasError) {
-                    return Text('Has error: ${snapshot.error}');
+                    return Text('Error: ${snapshot.error}');
                   }
 
-                  if (!snapshot.hasData) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
                     return const CircularProgressIndicator();
                   }
 
-                
-                  final filteredAnalyses = snapshot.data!.docs.where((doc) {
-                    final subjectCode = doc['subject'].toString().toLowerCase();
-                    return subjectCode.contains(_searchQuery);
-                  }).toList();
+                  final analysisDocs = snapshot.data!.docs;
 
                   return ListView.builder(
-                    itemCount: filteredAnalyses.length,
+                    itemCount: analysisDocs.length,
                     itemBuilder: (context, index) {
-                      final listAnalysis = filteredAnalyses[index];
-                      return SubjectListTile(
-                        subjectCode: listAnalysis['subject'], 
-                        studentkey: listAnalysis.id
+                      final analysisData = analysisDocs[index].data() as Map<String, dynamic>;
+                      final analysisId = analysisDocs[index].id;
+                      return ListTile(
+                        title: Text(analysisData['analysis_name'] ?? 'N/A'),
+                        subtitle: Text('Subject: ${analysisData['subject_name'] ?? 'N/A'}'),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) {
+                                return AnalysisInfo(analysisId: analysisId, subjectName: analysisData['subject_name'] ?? 'N/A',);
+                              },
+                            ),
+                          );
+                        },
+                        // Add more fields as needed
                       );
-                    }
+                    },
                   );
-                }
-              )
-            )
+                },
+              ),
+            ),
           ],
         ),
       ),
-      floatingActionButton: Container(
-        margin: const EdgeInsets.only(right: 16.0, bottom: 16.0),
-        child: FloatingActionButton(
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => analysisPage()),
-            );
-          },
-          child: Container(
-            padding: const EdgeInsets.all(8.0),
-            child: const Icon(
-              Icons.add,
-              color: Colors.white,
-              size: 32,
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) {
+                return const AnalysisPage();
+              },
             ),
-          ),
-          backgroundColor: const Color(0xFF00BF6D),
-          elevation: 4,
-        ),
+          );
+        },
+        child: const Icon(Icons.add),
       ),
     );
   }
 }
-
-
-class SearchBar extends StatelessWidget {
-  final Function(String) onChanged;
-
-  const SearchBar({Key? key, required this.onChanged}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.grey[200],
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: TextField(
-        decoration: InputDecoration(
-          hintText: 'Search Analysis',
-          prefixIcon: const Icon(Icons.search, color: Colors.grey),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 12),
-        ),
-        onChanged: onChanged,
-      ),
-    );
-  }
-}
-
-
 
 class SubjectListTile extends StatelessWidget {
+  final String subjectName;
   final String subjectCode;
-  final String studentkey;
- SubjectListTile({Key? key, required this.subjectCode, required this.studentkey}): super(key: key);
-        final _firestore = FirebaseFirestore.instance;
+  final String subjectDescription;
 
-
- void _showOptionDialog(BuildContext context,String studentId){
-      showDialog(context: context,
-      builder: (context)=> AlertDialog(
-        title: const Text('Select an Action'),
-        content: const Text('Do you want to Edit or Delete this Item'),
-        actions: [
-          TextButton(onPressed: (){
-
-                Navigator.push(context, MaterialPageRoute(builder: (context)=> AnalysisInfo(analysisId: studentId)));
-
-          }, child: Text('View')),
-
-          TextButton(onPressed: (){
-              
-              _firestore.collection('exam_detailed_analyses').doc(studentId).delete();
-
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Successfully Deleted a Analysis'),backgroundColor:Colors.green,));
-                Navigator.of(context).pop();
-          }, child: const Text('Delete'))
-        ],
-
-  ));
-  }
-
+  const SubjectListTile({
+    super.key,
+    required this.subjectName,
+    required this.subjectCode,
+    required this.subjectDescription,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Colors.grey, width: 0.5)),
-      ),
+    return Card(
+      margin: const EdgeInsets.all(8.0),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(vertical: 4),
-        title: Text(
-          subjectCode,
-          style: const TextStyle(
-            fontWeight: FontWeight.w500,
-            fontSize: 16,
-          ),
+        title: Text(subjectName),
+        subtitle: Text('$subjectCode\n$subjectDescription'),
+        trailing: IconButton(
+          icon: const Icon(Icons.delete),
+          onPressed: () {
+            // Show a confirmation dialog
+            showDialog(
+              context: context,
+              builder: (BuildContext context) {
+                return AlertDialog(
+                  title: const Text('Confirm Delete'),
+                  content: const Text('Are you sure you want to delete this subject?'),
+                  actions: <Widget>[
+                    TextButton(
+                      child: const Text('Cancel'),
+                      onPressed: () {
+                        Navigator.of(context).pop(); // Close the dialog
+                      },
+                    ),
+                    TextButton(
+                      child: const Text('Delete'),
+                      onPressed: () {
+                        // TODO: Implement delete functionality
+                        // This is where you would delete the subject from the database
+                        // After deleting, you might want to refresh the list of subjects
+                        Navigator.of(context).pop(); // Close the dialog
+                      },
+                    ),
+                  ],
+                );
+              },
+            );
+          },
         ),
-
-
-        trailing: const Icon(Icons.chevron_right, color: Colors.grey),
         onTap: () {
-          _showOptionDialog(context,studentkey);
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) {
+                return AnalysisInfo(
+                  subjectName: subjectName, analysisId: '',
+                );
+              },
+            ),
+          );
         },
       ),
     );
