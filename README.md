@@ -117,3 +117,104 @@ This file implements the main scanner screen, including camera handling, UI elem
 -   Add more customization options (e.g., bubble size, threshold values).
 -   Improve the answer sheet detection algorithm to better handle variations in lighting, angle, and paper size.
 -   Add an option to generate a PDF report of the scan results and item analysis.
+
+
+## Implemented Features
+
+### 1. Advanced Scanning Features 
+- **Camera Integration**
+  - Real-time bubble detection with guide overlay
+  - Advanced alignment guides
+  - Precise corner detection
+  - Multi-device camera support
+  - Real-time preview with guidelines
+
+- **Image Processing**
+  - Adaptive grayscale conversion
+  - Dynamic thresholding
+  - Advanced perspective correction
+  - Edge detection and cropping
+  - Enhanced image processing
+
+### 2. Answer Sheet Generation 
+- **PDF Generation**
+  - Multiple paper size support (A4, Letter, Legal, Custom)
+  - Flexible question count (20-200 questions)
+  - Customizable layout options
+  - Adjustable bubble sizes
+  - Custom margins and spacing
+
+### 3. Comprehensive Analysis 
+- **Score Calculation**
+  - Raw score computation
+  - Percentage scoring
+  - Multiple correct answer support
+  - Bonus question handling
+  - Performance metrics
+
+- **Statistical Analysis**
+  - Item difficulty analysis
+  - Error frequency tracking
+  - Performance distribution
+  - Detailed student insights
+  - Score trends
+
+### 4. User Management 
+- **Authentication**
+  - Firebase-based login
+  - Secure user registration
+  - Profile management
+  - Role-based access
+
+### 5. Export Capabilities
+- **Data Export**
+  - CSV export functionality
+  - Excel compatibility
+  - PDF report generation
+  - Batch processing support
+
+### 6. Quality Assurance
+- **Validation Features**
+  - Answer verification system
+  - Double-checking capability
+  - Error detection
+  - Image quality validation
+
+## Getting Started
+
+### Prerequisites
+1. Flutter (latest stable version)
+2. Firebase account
+3. Android Studio or VS Code
+
+### Installation
+1. Clone the repository
+2. Run `flutter pub get`
+3. Configure Firebase
+4. Run the app
+
+## Usage Guide
+
+### Basic Scanning
+1. Select 'Start Scanning' from the home screen
+2. Follow the camera guide overlay
+3. Align the answer sheet within the guides
+4. Hold steady for automatic capture
+5. Review the detected answers
+6. Save or retake if needed
+
+### Creating Answer Sheets
+1. Choose 'Create Answer Sheet'
+2. Configure paper size and layout
+3. Set number of questions (20-200)
+4. Choose options per question (up to 6)
+5. Add custom instructions if needed
+6. Generate and print
+
+### Analyzing Results
+1. Access the analysis section
+2. View raw scores and percentages
+3. Check item analysis
+4. Export results as needed
+5. Review performance metrics
+
