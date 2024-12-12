@@ -12,7 +12,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   // Initialize network metrics
-  AppMetrics().initialize(activeNetwork);
+  await AppMetrics().initialize(activeNetwork);
 
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,

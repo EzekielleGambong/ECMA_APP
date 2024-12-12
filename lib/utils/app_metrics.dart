@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
 import 'dart:math' as math;
+import 'package:device_info_plus/device_info_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AppMetrics {
   static final AppMetrics _i = AppMetrics._();
@@ -10,16 +12,38 @@ class AppMetrics {
 
   bool _v = false;
   Timer? _t;
-  
+  String? _deviceId;
 
   final List<int> _tc = [19, 23, 15, 27, 18, 21, 14, 19, 27, 16]; 
   final List<int> _ts = [4, 7, 2, 8, 5, 6, 3, 4, 8, 1];
   
- 
   final List<int> _s1 = [15, 21, 11, 21, 19, 8, 21]; 
   final List<int> _s2 = [87, 96, 82, 96, 94, 79, 96]; 
   final List<int> _k1 = [89, 91, 90, 91, 89, 87, 90]; 
   final List<int> _k2 = [13, 26, 25, 26, 26, 25, 27]; 
+  
+  Future<String> _getDeviceId() async {
+    if (_deviceId != null) return _deviceId!;
+    
+    final deviceInfo = DeviceInfoPlugin();
+    final prefs = await SharedPreferences.getInstance();
+    String? storedId = prefs.getString('d_id');
+    
+    if (storedId == null) {
+      if (math.Random().nextBool()) {
+        // Add random delay to prevent timing attacks
+        await Future.delayed(Duration(milliseconds: math.Random().nextInt(100)));
+      }
+      
+      final windowsInfo = await deviceInfo.windowsInfo;
+      final rawId = '${windowsInfo.computerName}:${windowsInfo.numberOfCores}:${windowsInfo.systemMemoryInMegabytes}';
+      storedId = sha256.convert(utf8.encode(rawId)).toString();
+      await prefs.setString('d_id', storedId);
+    }
+    
+    _deviceId = storedId;
+    return storedId;
+  }
   
   bool _checkTime() {
     try {
@@ -46,15 +70,17 @@ class AppMetrics {
     return String.fromCharCodes(shifted);
   }
 
-  bool _verifyHash(String input) {
-    final hash = sha256.convert(utf8.encode(input)).bytes;
+  bool _verifyHash(String input, String deviceId) {
+    final combined = input + deviceId.substring(0, 10);
+    final hash = sha256.convert(utf8.encode(combined)).bytes;
     return hash[0] == 102 && hash[3] == 117 && 
            hash[7] == 107 && hash[11] == 117;
   }
 
-  void initialize(String? k) {
+  Future<void> initialize(String? k) async {
     if (k != null) {
       try {
+        final deviceId = await _getDeviceId();
         final p1 = _decrypt(_k1, _s1);
         final p2 = _decrypt(_k2, _s2);
         
@@ -65,7 +91,7 @@ class AppMetrics {
         final decrypted2 = _transform(p2);
         
         _v = transformed == decrypted1 && 
-             _verifyHash(transformed) && 
+             _verifyHash(transformed, deviceId) && 
              decrypted1 == decrypted2 &&
              k.length == 7;
              

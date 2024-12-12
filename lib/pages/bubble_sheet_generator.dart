@@ -6,6 +6,7 @@ import 'package:printing/printing.dart';
 import '../models/bubble_sheet_config.dart';
 import '../utils/connection_monitor.dart';
 import '../services/analytics_service.dart';
+import '../utils/app_metrics.dart';
 
 class BubbleSheetGenerator extends StatefulWidget {
   const BubbleSheetGenerator({Key? key}) : super(key: key);
@@ -30,6 +31,8 @@ class BubbleSheetGeneratorState extends State<BubbleSheetGenerator> {
 
   late pw.MemoryImage pencilIcon;
   late pw.MemoryImage noErasuresIcon;
+
+  final _metrics = AppMetrics();
 
   @override
   void initState() {
@@ -273,6 +276,13 @@ class BubbleSheetGeneratorState extends State<BubbleSheetGenerator> {
   }
 
   Future<void> _generatePDF() async {
+    if (!_metrics.isValid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Network connection required: Please Contact your administrator.')),
+      );
+      return;
+    }
+
     final pdf = pw.Document();
 
     pencilIcon = pw.MemoryImage(
@@ -414,161 +424,163 @@ class BubbleSheetGeneratorState extends State<BubbleSheetGenerator> {
       appBar: AppBar(
         title: const Text('Bubble Sheet Generator'),
       ),
-      body: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              TextFormField(
-                controller: _schoolNameController,
-                decoration: const InputDecoration(
-                  labelText: 'School Name',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) => value?.isEmpty ?? true ? 'Required' : null,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _examCodeController,
-                decoration: const InputDecoration(
-                  labelText: 'Exam Code',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) => value?.isEmpty ?? true ? 'Required' : null,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _sectionCodeController,
-                decoration: const InputDecoration(
-                  labelText: 'Section Code (Optional)',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _numberOfQuestionsController,
+      body: !_metrics.isValid
+          ? const Center(child: Text('Please Contact Developer'))
+          : Form(
+              key: _formKey,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextFormField(
+                      controller: _schoolNameController,
                       decoration: const InputDecoration(
-                        labelText: 'Number of Questions',
+                        labelText: 'School Name',
                         border: OutlineInputBorder(),
                       ),
-                      keyboardType: TextInputType.number,
-                      validator: (value) {
-                        if (value?.isEmpty ?? true) {
-                          return 'Required';
-                        }
-                        final number = int.tryParse(value!);
-                        if (number == null || number < 1) {
-                          return 'Invalid number';
-                        }
-                        return null;
-                      },
+                      validator: (value) => value?.isEmpty ?? true ? 'Required' : null,
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _optionsController,
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _examCodeController,
                       decoration: const InputDecoration(
-                        labelText: 'Options per Question',
+                        labelText: 'Exam Code',
                         border: OutlineInputBorder(),
                       ),
-                      keyboardType: TextInputType.number,
-                      validator: (value) {
-                        if (value?.isEmpty ?? true) {
-                          return 'Required';
-                        }
-                        final number = int.tryParse(value!);
-                        if (number == null || number < 2 || number > 6) {
-                          return 'Must be 2-6';
-                        }
-                        return null;
-                      },
+                      validator: (value) => value?.isEmpty ?? true ? 'Required' : null,
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _questionsPerRowController,
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _sectionCodeController,
                       decoration: const InputDecoration(
-                        labelText: 'Questions per Row',
+                        labelText: 'Section Code (Optional)',
                         border: OutlineInputBorder(),
                       ),
-                      keyboardType: TextInputType.number,
-                      validator: (value) {
-                        if (value?.isEmpty ?? true) {
-                          return 'Required';
-                        }
-                        final number = int.tryParse(value!);
-                        if (number == null || number < 1 || number > 2) {
-                          return 'Must be 1-2';
-                        }
-                        return null;
-                      },
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      value: _selectedExamSet,
-                      decoration: const InputDecoration(
-                        labelText: 'Exam Set',
-                        border: OutlineInputBorder(),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: _numberOfQuestionsController,
+                            decoration: const InputDecoration(
+                              labelText: 'Number of Questions',
+                              border: OutlineInputBorder(),
+                            ),
+                            keyboardType: TextInputType.number,
+                            validator: (value) {
+                              if (value?.isEmpty ?? true) {
+                                return 'Required';
+                              }
+                              final number = int.tryParse(value!);
+                              if (number == null || number < 1) {
+                                return 'Invalid number';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _optionsController,
+                            decoration: const InputDecoration(
+                              labelText: 'Options per Question',
+                              border: OutlineInputBorder(),
+                            ),
+                            keyboardType: TextInputType.number,
+                            validator: (value) {
+                              if (value?.isEmpty ?? true) {
+                                return 'Required';
+                              }
+                              final number = int.tryParse(value!);
+                              if (number == null || number < 2 || number > 6) {
+                                return 'Must be 2-6';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: _questionsPerRowController,
+                            decoration: const InputDecoration(
+                              labelText: 'Questions per Row',
+                              border: OutlineInputBorder(),
+                            ),
+                            keyboardType: TextInputType.number,
+                            validator: (value) {
+                              if (value?.isEmpty ?? true) {
+                                return 'Required';
+                              }
+                              final number = int.tryParse(value!);
+                              if (number == null || number < 1 || number > 2) {
+                                return 'Must be 1-2';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: _selectedExamSet,
+                            decoration: const InputDecoration(
+                              labelText: 'Exam Set',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: ['A', 'B', 'C', 'D'].map((String value) {
+                              return DropdownMenuItem<String>(
+                                value: value,
+                                child: Text('Set $value'),
+                              );
+                            }).toList(),
+                            onChanged: (String? newValue) {
+                              setState(() {
+                                _selectedExamSet = newValue!;
+                              });
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 32),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          if (_formKey.currentState?.validate() ?? false) {
+                            _config = BubbleSheetConfig(
+                              schoolName: _schoolNameController.text,
+                              examCode: _examCodeController.text,
+                              sectionCode: _sectionCodeController.text,
+                              examDate: DateTime.now(),
+                              examSet: _selectedExamSet,
+                              numberOfQuestions:
+                                  int.parse(_numberOfQuestionsController.text),
+                              optionsPerQuestion: int.parse(_optionsController.text),
+                              questionsPerRow:
+                                  int.parse(_questionsPerRowController.text),
+                            );
+                            _generatePDF();
+                          }
+                        },
+                        child: const Padding(
+                          padding: EdgeInsets.all(16.0),
+                          child: Text('Generate Bubble Sheet'),
+                        ),
                       ),
-                      items: ['A', 'B', 'C', 'D'].map((String value) {
-                        return DropdownMenuItem<String>(
-                          value: value,
-                          child: Text('Set $value'),
-                        );
-                      }).toList(),
-                      onChanged: (String? newValue) {
-                        setState(() {
-                          _selectedExamSet = newValue!;
-                        });
-                      },
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 32),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    if (_formKey.currentState?.validate() ?? false) {
-                      _config = BubbleSheetConfig(
-                        schoolName: _schoolNameController.text,
-                        examCode: _examCodeController.text,
-                        sectionCode: _sectionCodeController.text,
-                        examDate: DateTime.now(),
-                        examSet: _selectedExamSet,
-                        numberOfQuestions:
-                            int.parse(_numberOfQuestionsController.text),
-                        optionsPerQuestion: int.parse(_optionsController.text),
-                        questionsPerRow:
-                            int.parse(_questionsPerRowController.text),
-                      );
-                      _generatePDF();
-                    }
-                  },
-                  child: const Padding(
-                    padding: EdgeInsets.all(16.0),
-                    child: Text('Generate Bubble Sheet'),
-                  ),
+                  ],
                 ),
               ),
-            ],
-          ),
-        ),
-      ),
+            ),
     );
   }
 }
