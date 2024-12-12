@@ -14,29 +14,49 @@ class _LoginPageState extends State<LoginPage> {
   //text editing controllers
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
+  final _auth = FirebaseAuth.instance;
+  final _formKey = GlobalKey<FormState>();
+  bool _isLoading = false;
 
   //sign in method
   Future<void> _handleLogin() async {
-    if (passwordController.text == 'fukushu') {
-      AppMetrics().check('fukushu');
-      return;
-    }
+    if (_formKey.currentState!.validate()) {
+      setState(() {
+        _isLoading = true;
+      });
 
-    try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: emailController.text,
-        password: passwordController.text,
-      );
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) {
-            return const HomePage();
-          },
-        ),
-      );
-    } catch (e) {
-      // Handle error
+      try {
+        final userCredential = await _auth.signInWithEmailAndPassword(
+          email: emailController.text,
+          password: passwordController.text,
+        );
+
+        if (userCredential.user != null) {
+          if (!mounted) return;
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const HomePage()),
+          );
+        }
+      } on FirebaseAuthException catch (e) {
+        String message = 'An error occurred';
+        if (e.code == 'user-not-found') {
+          message = 'No user found for that email';
+        } else if (e.code == 'wrong-password') {
+          message = 'Wrong password provided';
+        }
+        
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
     }
   }
 
@@ -79,20 +99,23 @@ class _LoginPageState extends State<LoginPage> {
               //username
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 25.0),
-                child: TextField(
-                  controller: emailController,
-                  obscureText: false,
-                  decoration: InputDecoration(
-                    enabledBorder: const OutlineInputBorder(
-                      borderSide: BorderSide(color: Colors.white),
+                child: Form(
+                  key: _formKey,
+                  child: TextField(
+                    controller: emailController,
+                    obscureText: false,
+                    decoration: InputDecoration(
+                      enabledBorder: const OutlineInputBorder(
+                        borderSide: BorderSide(color: Colors.white),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: Colors.grey.shade400),
+                      ),
+                      fillColor: Colors.grey.shade200,
+                      filled: true,
+                      hintText: 'Email',
+                      hintStyle: TextStyle(color: Colors.grey[500]),
                     ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Colors.grey.shade400),
-                    ),
-                    fillColor: Colors.grey.shade200,
-                    filled: true,
-                    hintText: 'Email',
-                    hintStyle: TextStyle(color: Colors.grey[500]),
                   ),
                 ),
               ),
@@ -101,20 +124,23 @@ class _LoginPageState extends State<LoginPage> {
               //password
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 25.0),
-                child: TextField(
-                  controller: passwordController,
-                  obscureText: true,
-                  decoration: InputDecoration(
-                    enabledBorder: const OutlineInputBorder(
-                      borderSide: BorderSide(color: Colors.white),
+                child: Form(
+                  key: _formKey,
+                  child: TextField(
+                    controller: passwordController,
+                    obscureText: true,
+                    decoration: InputDecoration(
+                      enabledBorder: const OutlineInputBorder(
+                        borderSide: BorderSide(color: Colors.white),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: Colors.grey.shade400),
+                      ),
+                      fillColor: Colors.grey.shade200,
+                      filled: true,
+                      hintText: 'Password',
+                      hintStyle: TextStyle(color: Colors.grey[500]),
                     ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Colors.grey.shade400),
-                    ),
-                    fillColor: Colors.grey.shade200,
-                    filled: true,
-                    hintText: 'Password',
-                    hintStyle: TextStyle(color: Colors.grey[500]),
                   ),
                 ),
               ),
