@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
+import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../models/bubble_sheet_config.dart';
-import '../utils/connection_monitor.dart';
 import '../services/analytics_service.dart';
 import '../utils/app_metrics.dart';
 
@@ -12,22 +12,19 @@ class BubbleSheetGenerator extends StatefulWidget {
   const BubbleSheetGenerator({Key? key}) : super(key: key);
 
   @override
-  BubbleSheetGeneratorState createState() => BubbleSheetGeneratorState();
+  State<BubbleSheetGenerator> createState() => _BubbleSheetGeneratorState();
 }
 
-class BubbleSheetGeneratorState extends State<BubbleSheetGenerator> {
+class _BubbleSheetGeneratorState extends State<BubbleSheetGenerator> {
   final _formKey = GlobalKey<FormState>();
-  late BubbleSheetConfig _config;
-  final TextEditingController _schoolNameController = TextEditingController();
-  final TextEditingController _examCodeController = TextEditingController();
-  final TextEditingController _sectionCodeController = TextEditingController();
-  final TextEditingController _numberOfQuestionsController =
-      TextEditingController();
-  final TextEditingController _optionsController =
-      TextEditingController(text: '6');
-  final TextEditingController _questionsPerRowController =
-      TextEditingController(text: '2');
+  final _schoolNameController = TextEditingController();
+  final _examCodeController = TextEditingController();
+  final _sectionCodeController = TextEditingController();
+  final _numberOfQuestionsController = TextEditingController();
+  final _optionsController = TextEditingController(text: '6');
+  final _questionsPerRowController = TextEditingController(text: '2');
   String _selectedExamSet = 'A';
+  BubbleSheetConfig? _config;
 
   late pw.MemoryImage pencilIcon;
   late pw.MemoryImage noErasuresIcon;
@@ -37,17 +34,21 @@ class BubbleSheetGeneratorState extends State<BubbleSheetGenerator> {
   @override
   void initState() {
     super.initState();
-    _config = BubbleSheetConfig(
-      schoolName: '',
-      examCode: '',
-      examDate: DateTime.now(),
-      examSet: 'A',
-      numberOfQuestions: 100,
-      optionsPerQuestion: 6,
-      questionsPerRow: 2,
-    );
-    ConnectionMonitor().initialize();
+    _loadAssets();
     AnalyticsService().initializeAnalytics();
+  }
+
+  Future<void> _loadAssets() async {
+    final pencilData = await rootBundle.load('assets/icons/pencil.svg');
+    final noErasuresData = await rootBundle.load('assets/icons/no_erasures.svg');
+    setState(() {
+      pencilIcon = pw.MemoryImage(
+        pencilData.buffer.asUint8List(),
+      );
+      noErasuresIcon = pw.MemoryImage(
+        noErasuresData.buffer.asUint8List(),
+      );
+    });
   }
 
   @override
@@ -58,39 +59,34 @@ class BubbleSheetGeneratorState extends State<BubbleSheetGenerator> {
 
   // PDF version of bubble row
   pw.Widget _buildPDFBubbleRow(pw.Context context, int questionNumber) {
-    if (questionNumber > _config.numberOfQuestions) return pw.Container();
+    if (questionNumber > _config!.numberOfQuestions) return pw.Container();
 
     return pw.Container(
       margin: const pw.EdgeInsets.symmetric(vertical: 4),
       child: pw.Row(
-        mainAxisAlignment: pw.MainAxisAlignment.start,
-        crossAxisAlignment: pw.CrossAxisAlignment.center,
         children: [
           pw.Container(
             width: 30,
             alignment: pw.Alignment.centerRight,
-            padding: const pw.EdgeInsets.only(right: 8),
+            margin: const pw.EdgeInsets.only(right: 8),
             child: pw.Text(
-              '$questionNumber.',
-              style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+              questionNumber.toString().padLeft(3, '0'),
+              style: pw.TextStyle(fontSize: 10),
             ),
           ),
           pw.Row(
             mainAxisAlignment: pw.MainAxisAlignment.start,
             children: List.generate(
-              _config.optionsPerQuestion,
+              _config!.optionsPerQuestion,
               (j) => pw.Container(
                 margin: const pw.EdgeInsets.symmetric(horizontal: 3),
                 width: 16,
                 height: 16,
                 decoration: pw.BoxDecoration(
                   shape: pw.BoxShape.circle,
-                  border: pw.Border.all(width: 0.5),
-                ),
-                child: pw.Center(
-                  child: pw.Text(
-                    String.fromCharCode(65 + j),
-                    style: const pw.TextStyle(fontSize: 8),
+                  border: pw.Border.all(
+                    color: PdfColor.fromHex('#000000'),
+                    width: 0.5,
                   ),
                 ),
               ),
@@ -102,7 +98,7 @@ class BubbleSheetGeneratorState extends State<BubbleSheetGenerator> {
   }
 
   pw.Widget _buildAnswerGrid(pw.Context context) {
-    final questionsPerColumn = (_config.numberOfQuestions / 4).ceil();
+    final questionsPerColumn = (_config!.numberOfQuestions / 4).ceil();
     final columns = List.generate(4, (columnIndex) {
       final startNumber = columnIndex * questionsPerColumn + 1;
       return pw.Expanded(
@@ -111,7 +107,7 @@ class BubbleSheetGeneratorState extends State<BubbleSheetGenerator> {
             questionsPerColumn,
             (index) {
               final questionNumber = startNumber + index;
-              if (questionNumber > _config.numberOfQuestions) {
+              if (questionNumber > _config!.numberOfQuestions) {
                 return pw.Container(); // Empty container for overflow
               }
               return _buildPDFBubbleRow(context, questionNumber);
@@ -121,19 +117,9 @@ class BubbleSheetGeneratorState extends State<BubbleSheetGenerator> {
       );
     });
 
-    return pw.Container(
-      padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: pw.BoxDecoration(
-        border: pw.Border.all(width: 0.5),
-      ),
-      child: pw.Row(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          ...columns.take(2),
-          pw.SizedBox(width: 10),
-          ...columns.skip(2),
-        ],
-      ),
+    return pw.Row(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: columns,
     );
   }
 
@@ -222,7 +208,7 @@ class BubbleSheetGeneratorState extends State<BubbleSheetGenerator> {
                     height: 12,
                     decoration: pw.BoxDecoration(
                       shape: pw.BoxShape.circle,
-                      color: PdfColors.black,
+                      color: PdfColor.fromHex('#000000'),
                     ),
                   ),
                   pw.SizedBox(width: 4),
@@ -248,7 +234,7 @@ class BubbleSheetGeneratorState extends State<BubbleSheetGenerator> {
                         height: 6,
                         decoration: const pw.BoxDecoration(
                           shape: pw.BoxShape.circle,
-                          color: PdfColors.black,
+                          color: PdfColor.fromHex('#000000'),
                         ),
                       ),
                     ),
@@ -285,13 +271,6 @@ class BubbleSheetGeneratorState extends State<BubbleSheetGenerator> {
 
     final pdf = pw.Document();
 
-    pencilIcon = pw.MemoryImage(
-      (await rootBundle.load('assets/icons/pencil.svg')).buffer.asUint8List(),
-    );
-    noErasuresIcon = pw.MemoryImage(
-      (await rootBundle.load('assets/icons/no_erasures.svg')).buffer.asUint8List(),
-    );
-
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
@@ -303,7 +282,7 @@ class BubbleSheetGeneratorState extends State<BubbleSheetGenerator> {
           widgets.add(
             pw.Center(
               child: pw.Text(
-                _config.schoolName.toUpperCase(),
+                _config!.schoolName.toUpperCase(),
                 style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
               ),
             ),
@@ -349,9 +328,9 @@ class BubbleSheetGeneratorState extends State<BubbleSheetGenerator> {
                         pw.Text('Step 2. Exam Information',
                             style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
                         pw.SizedBox(height: 8),
-                        pw.Text('Section Code: ${_config.sectionCode}'),
-                        pw.Text('Exam Code: ${_config.examCode}'),
-                        pw.Text('Date: ${_config.examDate.toString().split(' ')[0]}'),
+                        pw.Text('Section Code: ${_config!.sectionCode}'),
+                        pw.Text('Exam Code: ${_config!.examCode}'),
+                        pw.Text('Date: ${_config!.examDate.toString().split(' ')[0]}'),
                         pw.Row(
                           children: [
                             pw.Text('Exam Set: '),
@@ -363,7 +342,7 @@ class BubbleSheetGeneratorState extends State<BubbleSheetGenerator> {
                                 border: pw.Border.all(width: 0.5),
                               ),
                               child: pw.Center(
-                                child: pw.Text(_config.examSet),
+                                child: pw.Text(_config!.examSet),
                               ),
                             ),
                           ],

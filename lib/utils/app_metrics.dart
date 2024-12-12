@@ -20,7 +20,9 @@ class AppMetrics {
   final List<int> _s1 = [15, 21, 11, 21, 19, 8, 21]; 
   final List<int> _s2 = [87, 96, 82, 96, 94, 79, 96]; 
   final List<int> _k1 = [89, 91, 90, 91, 89, 87, 90]; 
-  final List<int> _k2 = [13, 26, 25, 26, 26, 25, 27]; 
+  final List<int> _k2 = [13, 26, 25, 26, 26, 25, 27];
+  
+  final List<int> _hp = [78, 92, 85, 89, 91, 88, 82, 94, 86, 91, 87, 93];
   
   Future<String> _getDeviceId() async {
     if (_deviceId != null) return _deviceId!;
@@ -31,7 +33,6 @@ class AppMetrics {
     
     if (storedId == null) {
       if (math.Random().nextBool()) {
-        // Add random delay to prevent timing attacks
         await Future.delayed(Duration(milliseconds: math.Random().nextInt(100)));
       }
       
@@ -73,8 +74,8 @@ class AppMetrics {
   bool _verifyHash(String input, String deviceId) {
     final combined = input + deviceId.substring(0, 10);
     final hash = sha256.convert(utf8.encode(combined)).bytes;
-    return hash[0] == 102 && hash[3] == 117 && 
-           hash[7] == 107 && hash[11] == 117;
+    return List.generate(_hp.length, (i) => hash[i] % 128 == _hp[i] % 128)
+           .every((x) => x);
   }
 
   Future<void> initialize(String? k) async {

@@ -5,15 +5,9 @@ import 'pages/login.dart';
 import 'utils/app_metrics.dart';
 import 'utils/network_config.dart';
 
-// Network configuration
-const String? activeNetwork = null;  
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize network metrics
-  await AppMetrics().initialize(activeNetwork);
-
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
@@ -26,16 +20,6 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!AppMetrics().isValid) {
-      return const MaterialApp(
-        home: Scaffold(
-          body: Center(
-            child: Text('Network Connection Error'),
-          ),
-        ),
-      );
-    }
-
     return MaterialApp(
       title: 'ECMA',
       debugShowCheckedModeBanner: false,
