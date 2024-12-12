@@ -117,7 +117,3 @@ This file implements the main scanner screen, including camera handling, UI elem
 -   Add more customization options (e.g., bubble size, threshold values).
 -   Improve the answer sheet detection algorithm to better handle variations in lighting, angle, and paper size.
 -   Add an option to generate a PDF report of the scan results and item analysis.
-
-## Contributing
-
-Contributions to the ECMA Answer Sheet Scanner project are welcome! If you find a bug or have a feature request, please open an issue on the GitHub repository. If you'd like to contribute code, please fork the repository and submit a pull request.
