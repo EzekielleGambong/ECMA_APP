@@ -131,7 +131,7 @@ class UpdateStudentState extends  State<UpdateStudent> {
        
 
         if (image1 != null) {
-          Reference ref = _storage.ref().child('subjectImages/${filename}');
+          Reference ref = _storage.ref().child('subjectImages/$filename');
           UploadTask uploadTask = ref.putFile(image1!);
           TaskSnapshot snapshot = await uploadTask;
           downloadUrl = await snapshot.ref.getDownloadURL();
@@ -149,7 +149,7 @@ class UpdateStudentState extends  State<UpdateStudent> {
 
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Added Students successfully')));
+            const SnackBar(content: Text('Added Students successfully')));
         _nameController.clear;
         setState(() {
           image1 = null;
@@ -237,7 +237,7 @@ void  onSelectionChanged() {
           onPressed: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => StudentList()),
+              MaterialPageRoute(builder: (context) => const StudentList()),
             );
           },
         ),
@@ -309,7 +309,7 @@ void  onSelectionChanged() {
             ),
 
             const SizedBox(height: 32),
-            _buildSectionTitle('${results ?? 'Your Score'}'),
+            _buildSectionTitle(results ?? 'Your Score'),
             const SizedBox(height: 100),
             ElevatedButton(
               onPressed: _addStudent,
@@ -383,6 +383,13 @@ void  onSelectionChanged() {
   }) {
     return OutlinedButton(
       onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        side: const BorderSide(color: Colors.grey),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -390,13 +397,6 @@ void  onSelectionChanged() {
           const SizedBox(width: 8),
           Text(label, style: TextStyle(color: color)),
         ],
-      ),
-      style: OutlinedButton.styleFrom(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        side: const BorderSide(color: Colors.grey),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
       ),
     );
   }

@@ -8,6 +8,7 @@ import 'dart:io';
 import '../core/image_processor.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import '../widgets/camera_guide.dart'; // Added import statement
 
 class ScannerPage extends StatefulWidget {
   const ScannerPage({Key? key}) : super(key: key);
@@ -25,7 +26,7 @@ class _ScannerPageState extends State<ScannerPage> {
   String _selectedPaperSize = 'A4'; // Default paper size
   int _numQuestions = ImageProcessor.defaultQuestionsPerPage;
   int _numOptions = ImageProcessor.defaultOptionsPerQuestion;
-  List<List<List<bool>>> _allScanResults = []; // Store all scan results for analysis
+  final List<List<List<bool>>> _allScanResults = []; // Store all scan results for analysis
   AnswerKey? _selectedAnswerKey;
   final _firestore = FirebaseFirestore.instance;
   final _storage = FirebaseStorage.instance;
@@ -589,6 +590,10 @@ class _ScannerPageState extends State<ScannerPage> {
                 ? Stack(
                     children: [
                       CameraPreview(_controller!),
+                      CameraGuide(
+                        screenWidth: MediaQuery.of(context).size.width,
+                        screenHeight: MediaQuery.of(context).size.height,
+                      ),
                       if (_isProcessing)
                         Container(
                           color: Colors.black54,
@@ -713,8 +718,8 @@ class _AnswerKeyManagerState extends State<AnswerKeyManager> {
   final _firestore = FirebaseFirestore.instance;
   final _formKey = GlobalKey<FormState>();
   String _name = '';
-  List<String> _answers = [];
-  List<bool> _bonusQuestions = [];
+  final List<String> _answers = [];
+  final List<bool> _bonusQuestions = [];
 
   @override
   Widget build(BuildContext context) {

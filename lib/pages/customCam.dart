@@ -99,14 +99,14 @@ class CustomCamState extends State<CustomCam> {
                 painter: GridPainter(),
               ),
             ),
-            Positioned(
+            const Positioned(
               top: 20,
               left: 0,
               right: 0,
               child: Center(
                 child: Text(
                   'Align Answer Sheet Within Frame',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Colors.white,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,

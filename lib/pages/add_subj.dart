@@ -287,7 +287,7 @@ void _removeLastAnswerKey() {
                     ],
                   ),
                   const SizedBox(height: 24),
-                  Container(
+                  SizedBox(
                     height: 300,
                     child: SingleChildScrollView(
                       child: Column(

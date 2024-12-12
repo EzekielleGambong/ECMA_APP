@@ -40,7 +40,7 @@ class _WelcomePageState extends State<WelcomePage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text('signed in as: ' + user.email!),
+            Text('signed in as: ${user.email!}'),
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: () {

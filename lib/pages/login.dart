@@ -116,7 +116,7 @@ class _LoginPageState extends State<LoginPage> {
                     context,
                     MaterialPageRoute(
                       builder: (context) {
-                        return HomePage();
+                        return const HomePage();
                       },
                     ),
                   );

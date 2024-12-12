@@ -31,7 +31,7 @@ class _StudentListState extends State<StudentList> {
                 context,
                 MaterialPageRoute(
                   builder: (context) {
-                    return HomePage();
+                    return const HomePage();
                   },
                 ),
               );
@@ -43,7 +43,7 @@ class _StudentListState extends State<StudentList> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text('signed in as: ' + user.email!),
+            Text('signed in as: ${user.email!}'),
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance

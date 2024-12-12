@@ -223,7 +223,7 @@ class _ExaminationBodyState extends State<ExaminationBody> {
                               fontSize: 16, fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 16),
-                        Container(
+                        SizedBox(
                           height: 300,
                           child: SingleChildScrollView(
                             child: Column(

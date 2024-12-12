@@ -7,7 +7,7 @@ import 'welcome.dart';
 class RegisterPage extends StatefulWidget {
   
 
-  RegisterPage({super.key});
+  const RegisterPage({super.key});
 
   @override
   _RegisterPageState createState() => _RegisterPageState();
@@ -55,7 +55,7 @@ class _RegisterPageState extends State<RegisterPage>{
         if (!mounted) return;
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => WelcomePage()),
+          MaterialPageRoute(builder: (context) => const WelcomePage()),
         );
       }
     });
@@ -154,7 +154,7 @@ class _RegisterPageState extends State<RegisterPage>{
                             context,
                             MaterialPageRoute(
                                 builder: (context) =>
-                                    LoginPage()), // Ensure LoginPage is imported
+                                    const LoginPage()), // Ensure LoginPage is imported
                           );
                         },
                         child: Text.rich(
@@ -206,7 +206,7 @@ class _RegisterPageState extends State<RegisterPage>{
         fillColor: const Color(0xFFF5FCF9),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16.0 * 1.5, vertical: 16.0),
-        border: OutlineInputBorder(
+        border: const OutlineInputBorder(
           borderSide: BorderSide.none,
           borderRadius: BorderRadius.all(Radius.circular(50)),
         ),

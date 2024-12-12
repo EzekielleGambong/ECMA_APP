@@ -69,7 +69,7 @@ class AnalysisPageState extends State<AnalysisPage> {
   }
 
   Future<void> _uploadMultipleImage() async {
-    final List<XFile>? pickedFiles = await _picker.pickMultiImage();
+    final List<XFile> pickedFiles = await _picker.pickMultiImage();
     
     if (pickedFiles != null) {
       setState(() {

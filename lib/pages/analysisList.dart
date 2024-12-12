@@ -42,7 +42,7 @@ class _analysisListState extends State<analysisList> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text('signed in as: ' + user.email!),
+            Text('signed in as: ${user.email!}'),
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance
