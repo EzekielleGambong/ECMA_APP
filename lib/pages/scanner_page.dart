@@ -285,6 +285,7 @@ class _ScannerPageState extends State<ScannerPage> {
 
   Future<void> _saveImage() async {
     if (_lastImage == null) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No image to save')),
       );
@@ -314,10 +315,12 @@ class _ScannerPageState extends State<ScannerPage> {
         'numOptions': _numOptions,
       });
 
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Image saved successfully')),
       );
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error saving image: $e')),
       );
@@ -347,6 +350,7 @@ class _ScannerPageState extends State<ScannerPage> {
 
   void _showItemAnalysis() {
     if (_allScanResults.isEmpty) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No scan results available for analysis')),
       );
@@ -393,7 +397,7 @@ class _ScannerPageState extends State<ScannerPage> {
 
     // Sort questions by difficulty
     questionStats.sort((a, b) => b['difficulty'].compareTo(a['difficulty']));
-
+    if (!mounted) return;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -465,11 +469,12 @@ class _ScannerPageState extends State<ScannerPage> {
       }
 
       await file.writeAsString(buffer.toString());
-
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Analysis exported to ${file.path}')),
       );
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error exporting analysis: $e')),
       );
@@ -536,6 +541,7 @@ class _ScannerPageState extends State<ScannerPage> {
   }
 
   void _showInstructions() {
+    if (!mounted) return;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(

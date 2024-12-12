@@ -30,6 +30,7 @@ class _RegisterPageState extends State<RegisterPage>{
     final signInMethods = await _fireAuth.fetchSignInMethodsForEmail(_emailController.text);
     if (signInMethods.isNotEmpty) {
       // Email is already in use
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Email already exists. Please use a different email.")),
       );
@@ -51,7 +52,7 @@ class _RegisterPageState extends State<RegisterPage>{
           'profile': 'none',
         });
 
-      
+        if (!mounted) return;
         Navigator.push(
           context,
           MaterialPageRoute(builder: (context) => WelcomePage()),
@@ -59,7 +60,7 @@ class _RegisterPageState extends State<RegisterPage>{
       }
     });
   } catch (e) {
-
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(e.toString())),
     );
@@ -205,7 +206,7 @@ class _RegisterPageState extends State<RegisterPage>{
         fillColor: const Color(0xFFF5FCF9),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16.0 * 1.5, vertical: 16.0),
-        border: const OutlineInputBorder(
+        border: OutlineInputBorder(
           borderSide: BorderSide.none,
           borderRadius: BorderRadius.all(Radius.circular(50)),
         ),
