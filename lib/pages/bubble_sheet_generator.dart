@@ -3,7 +3,6 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../models/bubble_sheet_config.dart';
-import 'package:barcode/barcode.dart';
 
 class BubbleSheetGenerator extends StatefulWidget {
   const BubbleSheetGenerator({Key? key}) : super(key: key);

@@ -208,7 +208,6 @@ class SubjectListTile extends StatelessWidget {
 
       final _firestore = FirebaseFirestore.instance;
 
-
        void _showOptionDialog(BuildContext context,String subjectKey){
       showDialog(context: context,
       builder: (context)=> AlertDialog(

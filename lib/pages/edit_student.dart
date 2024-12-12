@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
@@ -10,7 +9,6 @@ import 'student_list.dart';
 class UpdateStudent extends StatefulWidget {
   final String studentId;
   const UpdateStudent({Key? key, required this.studentId}) : super(key: key);
-
 
   @override 
   UpdateStudentState  createState() => UpdateStudentState();
@@ -28,7 +26,6 @@ class UpdateStudentState extends  State<UpdateStudent> {
   String? ImageUrl;
   
   List<String> subjectCodes = [];
-
 
   List<String> answerKey = [];
 
@@ -52,10 +49,12 @@ class UpdateStudentState extends  State<UpdateStudent> {
         setState(() {
 
           answerKey = List<String>.from(answers);
+          if (!mounted) return;
              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(answerKey.join(","))));
         });
     
     }else{
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No document Found')));
     }
       }else{
@@ -65,7 +64,7 @@ class UpdateStudentState extends  State<UpdateStudent> {
       
 
  }catch(e){
-
+      if (!mounted) return;
        ScaffoldMessenger.of(context).showSnackBar( SnackBar(content: Text(e.toString())));
  }
   } 
@@ -120,6 +119,7 @@ class UpdateStudentState extends  State<UpdateStudent> {
 
   Future<void> _addStudent() async {
     if (_nameController.text.isEmpty) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('Filled the Subjects')));
     }
@@ -147,6 +147,7 @@ class UpdateStudentState extends  State<UpdateStudent> {
           'examResults': results
         });
 
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Added Students successfully')));
         _nameController.clear;
@@ -155,6 +156,7 @@ class UpdateStudentState extends  State<UpdateStudent> {
         });
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(e.toString())));
     }
@@ -169,7 +171,6 @@ Future<void>  scanning () async{
     model: 'learnlm-1.5-pro-experimental', 
     apiKey: apiKey,
  );
-
 
     final content = [
     Content.multi([
@@ -188,7 +189,6 @@ Future<void>  scanning () async{
       results = response.text;
     });
 }
-
 
 Future <void> fetchstudents() async{
 
@@ -211,7 +211,6 @@ Future <void> fetchstudents() async{
     }
 
 }
-
 
 void  onSelectionChanged() {
     if(selectedExamType != null  &&  selectedSubjectCode != null ){

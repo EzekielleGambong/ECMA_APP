@@ -3,7 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'analysisInfo.dart';
 import 'analysisPage.dart';
-import 'edit_student.dart';
 import 'welcome.dart';
 
 class analysisList extends StatefulWidget {

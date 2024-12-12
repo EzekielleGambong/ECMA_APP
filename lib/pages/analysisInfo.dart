@@ -60,12 +60,12 @@ class _AnalysisInfoState extends State<AnalysisInfo> {
         title: Text('Analysis Info: ${widget.subjectName}'),
       ),
       body: isLoading
-          ? Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator())
           : errorMessage.isNotEmpty
               ? Center(
                   child: Text(
                     errorMessage,
-                    style: TextStyle(color: Colors.red),
+                    style: const TextStyle(color: Colors.red),
                   ),
                 )
               : contentResponse != null
@@ -78,14 +78,14 @@ class _AnalysisInfoState extends State<AnalysisInfo> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
+                                const Text(
                                   'Analysis Result:',
                                   style: TextStyle(
                                     fontSize: 18,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                                SizedBox(height: 8),
+                                const SizedBox(height: 8),
                                 // Safely use contentResponse
                                 Text(contentResponse ?? 'No analysis available'),
                               ],
@@ -94,7 +94,7 @@ class _AnalysisInfoState extends State<AnalysisInfo> {
                         )
                       ],
                     )
-                  : Center(
+                  : const Center(
                       child: Text('No analysis found'),
                     ),
     );

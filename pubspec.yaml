@@ -9,22 +9,24 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  firebase_core: ^2.25.4
-  firebase_auth: ^4.17.4
-  cloud_firestore: ^4.15.4
+  cupertino_icons: ^1.0.2
+  camera: ^0.10.6
+  image: ^4.0.17
+  path_provider: ^2.1.5
+  cloud_firestore: ^4.13.3
+  firebase_core: ^2.24.0
+  firebase_storage: ^11.5.3
+  file_picker: ^6.1.1
   google_sign_in: ^6.2.1
   google_fonts: ^6.1.0
   flutter_svg: ^2.0.9
-  camera: ^0.10.5+11
-  image: ^4.1.7
-  path_provider: ^2.1.2
   google_generative_ai: ^0.2.1
   image_picker: ^1.0.7
-  firebase_storage: ^11.6.5
-  file_picker: ^6.1.1
   pdf: ^3.10.7
   printing: ^5.12.0
   barcode: ^2.2.4
+  firebase_auth: ^4.15.3
+  shared_preferences: ^2.2.2
 
 dev_dependencies:
   flutter_test:

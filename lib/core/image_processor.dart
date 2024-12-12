@@ -6,9 +6,9 @@ import 'package:camera/camera.dart';
 
 class ImageProcessor {
   // Constants for answer sheet layout (updated for new format)
-  static const int DEFAULT_QUESTIONS_PER_PAGE = 100;
-  static const int DEFAULT_OPTIONS_PER_QUESTION = 4;
-  static const double BUBBLE_THRESHOLD = 0.5;
+  static const int defaultQuestionsPerPage = 100;
+  static const int defaultOptionsPerQuestion = 4;
+  static const double bubbleThreshold = 0.5;
 
   // Processes an answer sheet image and returns a list of boolean values indicating whether each bubble is filled.
   // The imagePath parameter specifies the path to the image file.
@@ -16,8 +16,8 @@ class ImageProcessor {
   // The optionsPerQuestion parameter specifies the number of options for each question.
   static Future<List<List<bool>>> processAnswerSheet(
     String imagePath, {
-    int numQuestions = DEFAULT_QUESTIONS_PER_PAGE,
-    int optionsPerQuestion = DEFAULT_OPTIONS_PER_QUESTION,
+    int numQuestions = defaultQuestionsPerPage,
+    int optionsPerQuestion = defaultOptionsPerQuestion,
     String paperSize = 'A4',
   }) async {
     // Read the image file
@@ -278,7 +278,7 @@ class ImageProcessor {
 
         // Mark as true if a bubble meets the threshold
         final double fillRatio = darkPixels / (bubbleSize * bubbleSize);
-        results[q][opt] = fillRatio > BUBBLE_THRESHOLD;
+        results[q][opt] = fillRatio > bubbleThreshold;
       }
     }
 
@@ -378,17 +378,17 @@ class ImageProcessor {
 
     final planes = cameraImage.planes;
 
-    const int Y_PLANE = 0;
-    const int UV_PLANE = 1;
+    const int yPlane = 0;
+    const int uvPlane = 1;
 
     for (int y = 0; y < height; y++) {
       for (int x = 0; x < width; x++) {
-        final int uvIndex = UV_PLANE * ((y ~/ 2) * width) + (x ~/ 2) * 2;
+        final int uvIndex = uvPlane * ((y ~/ 2) * width) + (x ~/ 2) * 2;
         final int index = y * width + x;
 
-        final yp = planes[Y_PLANE].bytes[index];
-        final up = planes[UV_PLANE].bytes[uvIndex];
-        final vp = planes[UV_PLANE].bytes[uvIndex + 1];
+        final yp = planes[yPlane].bytes[index];
+        final up = planes[uvPlane].bytes[uvIndex];
+        final vp = planes[uvPlane].bytes[uvIndex + 1];
 
         int r = (yp + vp * 1436 / 1024 - 179).round().clamp(0, 255);
         int g = (yp - up * 46549 / 131072 + 44 - vp * 93604 / 131072 + 91).round().clamp(0, 255);

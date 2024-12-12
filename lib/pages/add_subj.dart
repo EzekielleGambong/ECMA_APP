@@ -1,9 +1,6 @@
-import 'dart:io';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'subject_list.dart';
 
 void main() {
@@ -30,7 +27,6 @@ class ExaminationScreen extends StatelessWidget {
   const ExaminationScreen({Key? key}) : super(key: key);
 
  
-
 
   @override
   Widget build(BuildContext context) {
@@ -102,7 +98,7 @@ class _ExaminationBodyState extends State<ExaminationBody> {
                            numberFields = int.parse(numberController.text);
                            controllers = List.generate(numberFields, (index)=> TextEditingController());
                          });
-
+                          if (!mounted) return;
                           Navigator.of(context).pop();
                         }, child: const Text('Confirm'))
                     ],
@@ -124,6 +120,7 @@ class _ExaminationBodyState extends State<ExaminationBody> {
   
   
   if(subject.isEmpty || examType == null || answer.isEmpty){
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Please fill out all fields'))
     );
@@ -139,6 +136,7 @@ class _ExaminationBodyState extends State<ExaminationBody> {
 
    
     if (querySnapshot.docs.isNotEmpty) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Subject already exists!'))
       );
@@ -152,11 +150,12 @@ class _ExaminationBodyState extends State<ExaminationBody> {
       'answers': answer,
       'timestamp': FieldValue.serverTimestamp(),
     });
-    
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Successfully Added'))
     );
   } catch(e) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(e.toString()))
     );
@@ -336,7 +335,6 @@ void _removeLastAnswerKey() {
     );
   }
 
-
  Widget _buildActionButton({
     required IconData icon,
     required String label,
@@ -366,9 +364,4 @@ void _removeLastAnswerKey() {
     );
   }
 
-
 }
-
-
-
-

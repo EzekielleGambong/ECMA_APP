@@ -4,8 +4,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'customCam.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 
 class AddStudent extends StatefulWidget {
@@ -40,7 +38,7 @@ class _AddStudentState extends State<AddStudent> {
   Future<void> _openCamera() async {
     final File? capturedImage = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => CustomCam()),
+      MaterialPageRoute(builder: (context) => const CustomCam()),
     );
 
     if (capturedImage != null) {
@@ -49,6 +47,7 @@ class _AddStudentState extends State<AddStudent> {
       });
     } else {
       // Handle the case where the user canceled the camera operation
+      if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('Scan it first before you add the student')));
     }
@@ -56,6 +55,7 @@ class _AddStudentState extends State<AddStudent> {
 
   Future<void> _uploadImageToFirebase() async {
     if (_pickedImage == null) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No image selected.')));
       return;
     }
@@ -75,9 +75,11 @@ class _AddStudentState extends State<AddStudent> {
         'timestamp': FieldValue.serverTimestamp(),
       });
 
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Image uploaded successfully.')));
     } catch (e) {
       print('Error uploading image: $e');
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error uploading image: $e')));
     }
   }
@@ -91,7 +93,7 @@ class _AddStudentState extends State<AddStudent> {
 
   Future<void> checkAnswers() async {
     // Replace 'YOUR_API_KEY' with your actual API key from a secure source
-    const apiKey = 'YOUR_API_KEY'; 
+    const apiKey = 'AIzaSyBwQOMb7dwidhYKCitrxFgqKmmA0pmJfG8'; 
 
     final model = GenerativeModel(model: 'gemini-pro-vision', apiKey: apiKey);
     final List<Content> contents = [];

@@ -106,7 +106,7 @@ class CustomCamState extends State<CustomCam> {
               child: Center(
                 child: Text(
                   'Align Answer Sheet Within Frame',
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,

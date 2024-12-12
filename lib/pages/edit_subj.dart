@@ -1,8 +1,5 @@
-import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'subject_list.dart';
 
 class EditSubj extends StatelessWidget {
@@ -101,6 +98,7 @@ class _ExaminationBodyState extends State<ExaminationBody> {
       }
     } catch (e) {
       print('Error loading data: $e');
+      if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Failed to load data: $e')));
     }
@@ -116,6 +114,7 @@ class _ExaminationBodyState extends State<ExaminationBody> {
     }
 
     if (subject.isEmpty || examType == null || answers.isEmpty) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Please fill out all fields')));
       return;
@@ -128,9 +127,11 @@ class _ExaminationBodyState extends State<ExaminationBody> {
         'answers': answers,
         'timestamp': FieldValue.serverTimestamp(),
       });
+      if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('Successfully Updated')));
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Failed to update: $e')));
     }

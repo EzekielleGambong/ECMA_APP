@@ -36,6 +36,7 @@ class AnalysisPageState extends State<AnalysisPage> {
            selectedSubjectCode = snapshot.docs.map((doc)=> doc['subject'].toString()).toList();
         });
       }catch(e){
+        if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No Subject Found')));
       }
   }
@@ -53,14 +54,16 @@ class AnalysisPageState extends State<AnalysisPage> {
 
             setState(() {
               answerKey = List<String>.from(answers);
+               if (!mounted) return;
                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(answerKey.join(","))));
             });
 
           }else{
+            if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No Data Found')));
           }
         }catch (e){
-
+          if (!mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No Data Found')));
         }
   }
@@ -76,6 +79,7 @@ class AnalysisPageState extends State<AnalysisPage> {
   }
 Future<void> analysis() async {
   if (imageFiles == null || imageFiles!.isEmpty) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('No Image Uploaded'))
     );
@@ -83,6 +87,7 @@ Future<void> analysis() async {
   }
 
   if (selectSubject == null || answerKey.isEmpty) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Please select a subject and ensure answer key is loaded'))
     );
@@ -94,7 +99,7 @@ Future<void> analysis() async {
   });
 
   try {
-    const apiKey = 'YOUR_API_KEY'; // Replace with your actual API key
+    const apiKey = 'AIzaSyBwQOMb7dwidhYKCitrxFgqKmmA0pmJfG8'; // Replace with your actual API key
     
     List<Uint8List> imageListBytes = await Future.wait(
       imageFiles!.map((file) => file.readAsBytes())
@@ -201,6 +206,7 @@ The JSON output should be well-structured and easy to parse programmatically.'''
          potential_learning_gaps = analysisData['overall_summary']['potential_learning_gaps'].toString();
     });
       }catch(jsonError){
+        if (!mounted) return;
          ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error parsing analysis JSON: $jsonError'))
         );
@@ -216,7 +222,7 @@ The JSON output should be well-structured and easy to parse programmatically.'''
     setState(() {
       isLoading = false;
     });
-    
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Error during detailed analysis: $e'))
     );
@@ -304,7 +310,7 @@ Widget build(BuildContext context) {
           const SizedBox(height: 16),
         
             if(isLoading)
-            Center(child: CircularProgressIndicator(),),
+            const Center(child: CircularProgressIndicator(),),
 
             const SizedBox(height: 8),
           

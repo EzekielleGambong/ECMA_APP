@@ -13,7 +13,6 @@ class RegisterPage extends StatefulWidget {
   _RegisterPageState createState() => _RegisterPageState();
 }
 
-
 class _RegisterPageState extends State<RegisterPage>{
   final _formKey = GlobalKey<FormState>();
   
@@ -25,7 +24,6 @@ class _RegisterPageState extends State<RegisterPage>{
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmController = TextEditingController();
 
-
  Future<void> _register() async {
   try {
     // Check if email already exists
@@ -33,7 +31,7 @@ class _RegisterPageState extends State<RegisterPage>{
     if (signInMethods.isNotEmpty) {
       // Email is already in use
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Email already exists. Please use a different email.")),
+        const SnackBar(content: Text("Email already exists. Please use a different email.")),
       );
       return; // Exit the registration process
     }
@@ -217,4 +215,3 @@ class _RegisterPageState extends State<RegisterPage>{
       obscureText: obscureText,
     );
   }
-

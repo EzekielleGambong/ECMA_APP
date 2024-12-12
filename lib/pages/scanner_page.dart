@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import '../core/image_processor.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 class ScannerPage extends StatefulWidget {
   const ScannerPage({Key? key}) : super(key: key);
@@ -20,17 +21,20 @@ class _ScannerPageState extends State<ScannerPage> {
   bool _isProcessing = false;
   bool _isSheetDetected = false;
   Rect? _sheetRect; // To store the detected sheet's boundaries
-  int _numQuestions = ImageProcessor.DEFAULT_QUESTIONS_PER_PAGE;
-  int _numOptions = ImageProcessor.DEFAULT_OPTIONS_PER_QUESTION;
   img.Image? _lastImage; // Store the last captured image
-  List<List<List<bool>>> _allScanResults = []; // Store all scan results for analysis
   String _selectedPaperSize = 'A4'; // Default paper size
+  int _numQuestions = ImageProcessor.defaultQuestionsPerPage;
+  int _numOptions = ImageProcessor.defaultOptionsPerQuestion;
+  List<List<List<bool>>> _allScanResults = []; // Store all scan results for analysis
+  AnswerKey? _selectedAnswerKey;
+  final _firestore = FirebaseFirestore.instance;
+  final _storage = FirebaseStorage.instance;
 
   // Placeholder for the answer key. In a real app, this would come from user input.
   // Each inner list represents the correct options for a question (true if correct, false otherwise).
   final List<List<bool>> _answerKey = List.generate(
-    ImageProcessor.DEFAULT_QUESTIONS_PER_PAGE,
-    (_) => List.generate(ImageProcessor.DEFAULT_OPTIONS_PER_QUESTION, (index) => index == 0),
+    ImageProcessor.defaultQuestionsPerPage,
+    (_) => List.generate(ImageProcessor.defaultOptionsPerQuestion, (index) => index == 0),
   );
 
   @override
@@ -88,7 +92,7 @@ class _ScannerPageState extends State<ScannerPage> {
       List<List<bool>> results = await _detectBubblesInROI(image, sheetRect);
 
       // Calculate the raw score
-      int score = ImageProcessor.calculateRawScore(results, _answerKey);
+      int score = _calculateScore(results);
 
       // Handle the scan results
       _handleScanResults(results, score);
@@ -228,7 +232,7 @@ class _ScannerPageState extends State<ScannerPage> {
   }
 
   // Detects filled bubbles within a specified region of interest (ROI) in the image.
- Future<List<List<bool>>> _detectBubblesInROI(img.Image image, Rect roi) async {
+  Future<List<List<bool>>> _detectBubblesInROI(img.Image image, Rect roi) async {
     // Extract the ROI from the image
     img.Image croppedImage = img.copyCrop(
       image,
@@ -243,98 +247,153 @@ class _ScannerPageState extends State<ScannerPage> {
     img.Image binaryImage = ImageProcessor.applyAdaptiveThreshold(grayscale);
 
     // Detect bubbles in the cropped image, passing the number of questions, options, and paper size
-    return ImageProcessor.detectBubbles(binaryImage, _numQuestions, _numOptions, _selectedPaperSize);
+    return ImageProcessor.detectBubbles(binaryImage, _numQuestions, _numOptions);
   }
 
   // handles the scan results
   void _handleScanResults(List<List<bool>> results, int score) {
-  if (mounted) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Scan Results'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              for (int i = 0; i < results.length; i++)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4.0),
-                  child: Text('Question ${i + 1}: ${results[i].map((e) => e ? '1' : '0').join(', ')}'),
-                ),
-              const SizedBox(height: 16),
-              Text('Raw Score: $score', style: const TextStyle(fontWeight: FontWeight.bold)),
-            ],
+    if (mounted) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Scan Results'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (int i = 0; i < results.length; i++)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4.0),
+                    child: Text('Question ${i + 1}: ${results[i].map((e) => e ? '1' : '0').join(', ')}'),
+                  ),
+                const SizedBox(height: 16),
+                Text('Raw Score: $score', style: const TextStyle(fontWeight: FontWeight.bold)),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
+      );
+    }
   }
-}
 
   Future<void> _saveImage() async {
-    if (_lastImage != null) {
-      try {
-        final directory = await getApplicationDocumentsDirectory();
-        final imagePath = '${directory.path}/${DateTime.now()}.png';
-        File(imagePath).writeAsBytesSync(img.encodePng(_lastImage!));
+    if (_lastImage == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No image to save')),
+      );
+      return;
+    }
 
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Image saved to $imagePath')));
-      } catch (e) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error saving image: $e')));
-      }
-    } else {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No image to save.')));
+    try {
+      // Save to local storage
+      final directory = await getApplicationDocumentsDirectory();
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final localPath = '${directory.path}/scan_$timestamp.png';
+      final file = File(localPath);
+      await file.writeAsBytes(img.encodePng(_lastImage!));
+
+      // Upload to Firebase Storage
+      final storageRef = _storage.ref().child('scans/scan_$timestamp.png');
+      await storageRef.putFile(file);
+      final downloadUrl = await storageRef.getDownloadURL();
+
+      // Save metadata to Firestore
+      await _firestore.collection('scanned_images').add({
+        'timestamp': FieldValue.serverTimestamp(),
+        'imageUrl': downloadUrl,
+        'answerKeyId': _selectedAnswerKey?.id,
+        'paperSize': _selectedPaperSize,
+        'numQuestions': _numQuestions,
+        'numOptions': _numOptions,
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Image saved successfully')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error saving image: $e')),
+      );
     }
   }
 
-  // Method to save scan results to Firestore
-  Future<void> _saveScanResults(List<List<bool>> results, int score) async {
-    try {
-      await FirebaseFirestore.instance.collection('exam_results').add({
-        'timestamp': FieldValue.serverTimestamp(),
-        'studentId': 'N/A', // Replace with actual student ID if available
-        'subject': 'N/A', // Replace with actual subject if available
-        'numQuestions': _numQuestions,
-        'numOptions': _numOptions,
-        'results': results,
-        'rawScore': score,
-      });
+  int _calculateScore(List<List<bool>> results) {
+    if (_selectedAnswerKey == null) return 0;
 
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Scan results saved successfully.'))
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error saving scan results: $e'))
-      );
+    int score = 0;
+    for (int i = 0; i < results.length; i++) {
+      if (i < _selectedAnswerKey!.answers.length) {
+        if (_selectedAnswerKey!.bonusQuestions[i]) {
+          // Bonus question - any answer is correct
+          score++;
+        } else {
+          // Regular question - check against answer key
+          int correctAnswer = _selectedAnswerKey!.answers[i].codeUnitAt(0) - 'A'.codeUnitAt(0);
+          if (results[i][correctAnswer]) {
+            score++;
+          }
+        }
+      }
     }
+    return score;
   }
 
   void _showItemAnalysis() {
     if (_allScanResults.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No scan results available for analysis.')),
+        const SnackBar(content: Text('No scan results available for analysis')),
       );
       return;
     }
 
-    // Calculate item analysis
-    final analysisData = ImageProcessor.calculateItemAnalysis(_allScanResults, _numQuestions, _numOptions);
+    // Calculate statistics
+    List<Map<String, dynamic>> questionStats = List.generate(_numQuestions, (index) {
+      int correct = 0;
+      Map<int, int> incorrectDistribution = {};
 
-    // Display results in a dialog
+      for (var result in _allScanResults) {
+        if (index < result.length) {
+          bool isCorrect = false;
+          if (_selectedAnswerKey != null && index < _selectedAnswerKey!.answers.length) {
+            if (_selectedAnswerKey!.bonusQuestions[index]) {
+              isCorrect = true;
+            } else {
+              int correctAnswer = _selectedAnswerKey!.answers[index].codeUnitAt(0) - 'A'.codeUnitAt(0);
+              isCorrect = result[index][correctAnswer];
+            }
+          }
+
+          if (isCorrect) {
+            correct++;
+          } else {
+            for (int i = 0; i < result[index].length; i++) {
+              if (result[index][i]) {
+                incorrectDistribution[i] = (incorrectDistribution[i] ?? 0) + 1;
+              }
+            }
+          }
+        }
+      }
+
+      return {
+        'questionNumber': index + 1,
+        'correctCount': correct,
+        'incorrectCount': _allScanResults.length - correct,
+        'incorrectDistribution': incorrectDistribution,
+        'difficulty': 1 - (correct / _allScanResults.length),
+      };
+    });
+
+    // Sort questions by difficulty
+    questionStats.sort((a, b) => b['difficulty'].compareTo(a['difficulty']));
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -344,11 +403,30 @@ class _ScannerPageState extends State<ScannerPage> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              for (final entry in analysisData.entries)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4.0),
-                  child: Text('${entry.key}: ${entry.value}'),
-                ),
+              Text('Total Responses: ${_allScanResults.length}'),
+              const Divider(),
+              ...questionStats.map((stat) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Question ${stat['questionNumber']}',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    Text('Correct: ${stat['correctCount']}'),
+                    Text('Incorrect: ${stat['incorrectCount']}'),
+                    Text('Difficulty: ${(stat['difficulty'] * 100).toStringAsFixed(1)}%'),
+                    if (stat['incorrectDistribution'].isNotEmpty)
+                      Text('Incorrect Answers: ' +
+                          stat['incorrectDistribution']
+                              .entries
+                              .map((e) =>
+                                  '${String.fromCharCode(e.key + 'A'.codeUnitAt(0))}: ${e.value}')
+                              .join(', ')),
+                    const Divider(),
+                  ],
+                );
+              }).toList(),
             ],
           ),
         ),
@@ -357,9 +435,104 @@ class _ScannerPageState extends State<ScannerPage> {
             onPressed: () => Navigator.pop(context),
             child: const Text('Close'),
           ),
+          TextButton(
+            onPressed: () => _exportAnalysis(questionStats),
+            child: const Text('Export'),
+          ),
         ],
       ),
     );
+  }
+
+  Future<void> _exportAnalysis(List<Map<String, dynamic>> stats) async {
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final file = File('${directory.path}/analysis_$timestamp.csv');
+
+      final buffer = StringBuffer();
+      buffer.writeln('Question,Correct,Incorrect,Difficulty,Incorrect Distribution');
+
+      for (var stat in stats) {
+        buffer.write('${stat['questionNumber']},');
+        buffer.write('${stat['correctCount']},');
+        buffer.write('${stat['incorrectCount']},');
+        buffer.write('${(stat['difficulty'] * 100).toStringAsFixed(1)}%,');
+        buffer.writeln(stat['incorrectDistribution']
+            .entries
+            .map((e) => '${String.fromCharCode(e.key + 'A'.codeUnitAt(0))}:${e.value}')
+            .join(';'));
+      }
+
+      await file.writeAsString(buffer.toString());
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Analysis exported to ${file.path}')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error exporting analysis: $e')),
+      );
+    }
+  }
+
+  Future<void> _selectAnswerKey(BuildContext context) async {
+    final result = await showDialog<AnswerKey>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Select Answer Key'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: StreamBuilder<QuerySnapshot>(
+            stream: _firestore.collection('answer_keys').snapshots(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return const CircularProgressIndicator();
+              }
+
+              return ListView.builder(
+                shrinkWrap: true,
+                itemCount: snapshot.data!.docs.length,
+                itemBuilder: (context, index) {
+                  final doc = snapshot.data!.docs[index];
+                  final answerKey = AnswerKey.fromFirestore(doc);
+                  return ListTile(
+                    title: Text(answerKey.name),
+                    subtitle: Text('Questions: ${answerKey.answers.length}'),
+                    onTap: () {
+                      Navigator.of(context).pop(answerKey);
+                    },
+                  );
+                },
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const AnswerKeyManager(),
+                ),
+              );
+            },
+            child: const Text('Create New'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null) {
+      setState(() {
+        _selectedAnswerKey = result;
+        _numQuestions = result.answers.length;
+      });
+    }
   }
 
   void _showInstructions() {
@@ -367,28 +540,11 @@ class _ScannerPageState extends State<ScannerPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Instructions'),
-        content: const SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('1. Ensure the answer sheet is well-lit and within the camera frame.'),
-              SizedBox(height: 8),
-              Text('2. Hold the device steady to avoid blurry images.'),
-              SizedBox(height: 8),
-              Text('3. For each question, shade one bubble completely.'),
-              SizedBox(height: 8),
-              Text('4. Use a No. 2 pencil or a dark pen for marking.'),
-              SizedBox(height: 8),
-              Text('5. Avoid making stray marks or smudges on the answer sheet.'),
-              SizedBox(height: 8),
-              Text('6. Make sure the answer sheet is flat and not folded or wrinkled.'),
-            ],
-          ),
-        ),
+        content: const Text('Here are the instructions for using the scanner.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
+            child: const Text('OK'),
           ),
         ],
       ),
@@ -408,6 +564,11 @@ class _ScannerPageState extends State<ScannerPage> {
         title: const Text('Answer Sheet Scanner'),
         backgroundColor: Colors.blue,
         actions: [
+          IconButton(
+            onPressed: () => _selectAnswerKey(context),
+            icon: const Icon(Icons.assignment),
+            tooltip: 'Select Answer Key',
+          ),
           IconButton(
             onPressed: _showInstructions,
             icon: const Icon(Icons.info_outline),
@@ -480,7 +641,7 @@ class _ScannerPageState extends State<ScannerPage> {
                   ),
                   onChanged: (value) {
                     setState(() {
-                      _numQuestions = int.tryParse(value) ?? ImageProcessor.DEFAULT_QUESTIONS_PER_PAGE;
+                      _numQuestions = int.tryParse(value) ?? ImageProcessor.defaultQuestionsPerPage;
                     });
                   },
                 ),
@@ -494,7 +655,7 @@ class _ScannerPageState extends State<ScannerPage> {
                   ),
                   onChanged: (value) {
                     setState(() {
-                      _numOptions = int.tryParse(value) ?? ImageProcessor.DEFAULT_OPTIONS_PER_QUESTION;
+                      _numOptions = int.tryParse(value) ?? ImageProcessor.defaultOptionsPerQuestion;
                     });
                   },
                 ),
@@ -514,5 +675,98 @@ class _ScannerPageState extends State<ScannerPage> {
         ],
       ),
     );
+  }
+}
+
+class AnswerKey {
+  final String id;
+  final String name;
+  final List<String> answers;
+  final List<bool> bonusQuestions;
+
+  AnswerKey({required this.id, required this.name, required this.answers, required this.bonusQuestions});
+
+  factory AnswerKey.fromFirestore(DocumentSnapshot doc) {
+    return AnswerKey(
+      id: doc.id,
+      name: doc['name'],
+      answers: List<String>.from(doc['answers']),
+      bonusQuestions: List<bool>.from(doc['bonusQuestions']),
+    );
+  }
+}
+
+class AnswerKeyManager extends StatefulWidget {
+  const AnswerKeyManager({Key? key}) : super(key: key);
+
+  @override
+  _AnswerKeyManagerState createState() => _AnswerKeyManagerState();
+}
+
+class _AnswerKeyManagerState extends State<AnswerKeyManager> {
+  final _firestore = FirebaseFirestore.instance;
+  final _formKey = GlobalKey<FormState>();
+  String _name = '';
+  List<String> _answers = [];
+  List<bool> _bonusQuestions = [];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Answer Key Manager'),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            children: [
+              TextFormField(
+                decoration: const InputDecoration(
+                  labelText: 'Name',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter a name';
+                  }
+                  return null;
+                },
+                onSaved: (value) => _name = value!,
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () {
+                  if (_formKey.currentState!.validate()) {
+                    _formKey.currentState!.save();
+                    _createAnswerKey();
+                  }
+                },
+                child: const Text('Create Answer Key'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _createAnswerKey() async {
+    try {
+      await _firestore.collection('answer_keys').add({
+        'name': _name,
+        'answers': _answers,
+        'bonusQuestions': _bonusQuestions,
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Answer key created successfully')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error creating answer key: $e')),
+      );
+    }
   }
 }
