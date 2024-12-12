@@ -4,6 +4,8 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../models/bubble_sheet_config.dart';
+import '../utils/connection_monitor.dart';
+import '../services/analytics_service.dart';
 
 class BubbleSheetGenerator extends StatefulWidget {
   const BubbleSheetGenerator({Key? key}) : super(key: key);
@@ -41,6 +43,14 @@ class BubbleSheetGeneratorState extends State<BubbleSheetGenerator> {
       optionsPerQuestion: 6,
       questionsPerRow: 2,
     );
+    ConnectionMonitor().initialize();
+    AnalyticsService().initializeAnalytics();
+  }
+
+  @override
+  void dispose() {
+    AnalyticsService().dispose();
+    super.dispose();
   }
 
   // PDF version of bubble row
