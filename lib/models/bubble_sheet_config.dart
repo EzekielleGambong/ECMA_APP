@@ -1,5 +1,69 @@
 import 'dart:ui';  // Add this import for Rect
 
+class BubblePosition {
+  final int x;
+  final int y;
+  final String value;
+
+  const BubblePosition({
+    required this.x,
+    required this.y,
+    required this.value,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'x': x,
+    'y': y,
+    'value': value,
+  };
+
+  factory BubblePosition.fromJson(Map<String, dynamic> json) => BubblePosition(
+    x: json['x'] as int,
+    y: json['y'] as int,
+    value: json['value'] as String,
+  );
+}
+
+class Question {
+  final String id;
+  final List<BubblePosition> bubbles;
+
+  const Question({
+    required this.id,
+    required this.bubbles,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'bubbles': bubbles.map((b) => b.toJson()).toList(),
+  };
+
+  factory Question.fromJson(Map<String, dynamic> json) => Question(
+    id: json['id'] as String,
+    bubbles: (json['bubbles'] as List).map((b) => BubblePosition.fromJson(b)).toList(),
+  );
+}
+
+class Section {
+  final String id;
+  final List<Question> questions;
+
+  const Section({
+    required this.id,
+    required this.questions,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'questions': questions.map((q) => q.toJson()).toList(),
+  };
+
+  factory Section.fromJson(Map<String, dynamic> json) => Section(
+    id: json['id'] as String,
+    questions: (json['questions'] as List).map((q) => Question.fromJson(q)).toList(),
+  );
+}
+
 class GridSquareConfig {
   final double size;  // Size of each grid square
   final double spacing;  // Spacing between grid squares
@@ -41,8 +105,7 @@ class BubbleSheetConfig {
   final String? sectionCode;
   final DateTime examDate;
   final String examSet;
-  final int numberOfQuestions;
-  final int optionsPerQuestion;  
+  final List<Section> sections;
   final bool includeStudentInfo;
   final bool includeBarcode;
   final String? customInstructions;
@@ -63,8 +126,7 @@ class BubbleSheetConfig {
     this.sectionCode,
     required this.examDate,
     required this.examSet,
-    required this.numberOfQuestions,
-    this.optionsPerQuestion = 6,  
+    required this.sections,
     this.includeStudentInfo = true,
     this.includeBarcode = true,
     this.customInstructions,
@@ -80,14 +142,15 @@ class BubbleSheetConfig {
     this.gridSquareConfig = const GridSquareConfig(),
   });
 
+  int get numberOfQuestions => sections.fold(0, (sum, section) => sum + section.questions.length);
+
   Map<String, dynamic> toJson() => {
     'schoolName': schoolName,
     'examCode': examCode,
     'sectionCode': sectionCode,
     'examDate': examDate.toIso8601String(),
     'examSet': examSet,
-    'numberOfQuestions': numberOfQuestions,
-    'optionsPerQuestion': optionsPerQuestion,
+    'sections': sections.map((s) => s.toJson()).toList(),
     'includeStudentInfo': includeStudentInfo,
     'includeBarcode': includeBarcode,
     'customInstructions': customInstructions,
@@ -104,26 +167,27 @@ class BubbleSheetConfig {
   };
 
   factory BubbleSheetConfig.fromJson(Map<String, dynamic> json) => BubbleSheetConfig(
-    schoolName: json['schoolName'],
-    examCode: json['examCode'],
-    sectionCode: json['sectionCode'],
-    examDate: DateTime.parse(json['examDate']),
-    examSet: json['examSet'],
-    numberOfQuestions: json['numberOfQuestions'],
-    optionsPerQuestion: json['optionsPerQuestion'] ?? 6,
-    includeStudentInfo: json['includeStudentInfo'] ?? true,
-    includeBarcode: json['includeBarcode'] ?? true,
-    customInstructions: json['customInstructions'],
-    fontSize: json['fontSize']?.toDouble() ?? 12.0,
-    bubbleSize: json['bubbleSize']?.toDouble() ?? 20.0,
-    questionsPerRow: json['questionsPerRow'] ?? 1,
-    columnCount: json['columnCount'] ?? 4,
+    schoolName: json['schoolName'] as String,
+    examCode: json['examCode'] as String,
+    sectionCode: json['sectionCode'] as String?,
+    examDate: DateTime.parse(json['examDate'] as String),
+    examSet: json['examSet'] as String,
+    sections: (json['sections'] as List).map((s) => Section.fromJson(s)).toList(),
+    includeStudentInfo: json['includeStudentInfo'] as bool? ?? true,
+    includeBarcode: json['includeBarcode'] as bool? ?? true,
+    customInstructions: json['customInstructions'] as String?,
+    fontSize: json['fontSize']?.toDouble(),
+    bubbleSize: json['bubbleSize']?.toDouble(),
+    questionsPerRow: json['questionsPerRow'] as int? ?? 1,
+    columnCount: json['columnCount'] as int? ?? 4,
     topMargin: json['topMargin']?.toDouble() ?? 50.0,
     leftMargin: json['leftMargin']?.toDouble() ?? 50.0,
     bubbleSpacing: json['bubbleSpacing']?.toDouble() ?? 5.0,
     bubbleRadius: json['bubbleRadius']?.toDouble() ?? 10.0,
-    questionsPerColumn: json['questionsPerColumn'] ?? 25,
-    gridSquareConfig: GridSquareConfig.fromJson(json['gridSquareConfig']),
+    questionsPerColumn: json['questionsPerColumn'] as int? ?? 25,
+    gridSquareConfig: json['gridSquareConfig'] != null 
+      ? GridSquareConfig.fromJson(json['gridSquareConfig'])
+      : const GridSquareConfig(),
   );
 
   // Helper method to calculate positions
@@ -132,13 +196,13 @@ class BubbleSheetConfig {
   }
 
   double getQuestionX(int questionIndex) {
-    return (questionIndex ~/ questionsPerRow) * (bubbleSize ?? 20.0) * optionsPerQuestion;
+    return (questionIndex ~/ questionsPerRow) * (bubbleSize ?? 20.0) * 6;
   }
 
   // Calculate grid square positions
   List<Rect> getGridSquares() {
     final squares = <Rect>[];
-    final startX = (bubbleSize ?? 20.0) * optionsPerQuestion * questionsPerRow;
+    final startX = (bubbleSize ?? 20.0) * 6 * questionsPerRow;
     final startY = 0.0;
 
     for (int i = 0; i < gridSquareConfig.numSquares; i++) {

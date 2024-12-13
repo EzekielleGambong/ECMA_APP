@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
+import 'pages/welcome_page.dart';
 import 'pages/login.dart';
+import 'pages/signup.dart';
+import 'pages/home_page.dart';
+import 'pages/subjects_page.dart';
+import 'pages/analysis_page.dart';
 import 'utils/app_metrics.dart';
 import 'utils/network_config.dart';
 
@@ -34,7 +40,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'ECMA',
+      title: 'ECMA App',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
@@ -50,7 +56,11 @@ class MyApp extends StatelessWidget {
       // Enable route caching
       initialRoute: '/',
       routes: {
-        '/': (context) => const LoginPage(),
+        '/': (context) => const WelcomePage(),
+        '/welcome': (context) => const WelcomePage(),
+        '/login': (context) => const LoginPage(),
+        '/signup': (context) => const SignUpPage(),
+        '/home': (context) => const HomePage(),
       },
     );
   }

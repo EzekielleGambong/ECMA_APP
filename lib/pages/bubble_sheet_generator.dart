@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'dart:typed_data';
+import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'dart:ui';
 import 'package:printing/printing.dart';
 import '../models/bubble_sheet_config.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import '../services/offline_storage_service.dart';
+import '../services/bubble_sheet_scanner.dart';
 
 class BubbleSheetGenerator extends StatefulWidget {
   const BubbleSheetGenerator({super.key});
@@ -25,6 +29,28 @@ class _BubbleSheetGeneratorState extends State<BubbleSheetGenerator> {
   String _selectedExamSet = 'A';
   bool _isLoading = false;
   bool _isGeneratingPDF = false;
+  final _offlineStorage = OfflineStorageService();
+  final _scanner = BubbleSheetScanner();
+  bool _isGenerating = false;
+  bool _isOffline = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkConnectivity();
+    _initializeOfflineStorage();
+  }
+
+  Future<void> _checkConnectivity() async {
+    final connectivityResult = await Connectivity().checkConnectivity();
+    setState(() {
+      _isOffline = connectivityResult == ConnectivityResult.none;
+    });
+  }
+
+  Future<void> _initializeOfflineStorage() async {
+    await _offlineStorage.initialize();
+  }
 
   @override
   void dispose() {
@@ -38,23 +64,39 @@ class _BubbleSheetGeneratorState extends State<BubbleSheetGenerator> {
   }
 
   Future<void> _generatePDF() async {
-    if (!mounted || _isGeneratingPDF) return;
-    
+    if (_isGenerating) return;
+
     setState(() {
-      _isLoading = true;
-      _isGeneratingPDF = true;
+      _isGenerating = true;
     });
-    
+
     try {
-      // Create config with optimized settings
+      final pdf = pw.Document();
       final config = BubbleSheetConfig(
         schoolName: _schoolNameController.text,
         examCode: _examCodeController.text,
         sectionCode: _sectionCodeController.text,
         examDate: DateTime.now(),
         examSet: _selectedExamSet,
-        numberOfQuestions: int.parse(_numberOfQuestionsController.text),
-        optionsPerQuestion: int.parse(_optionsController.text),
+        sections: [
+          Section(
+            id: 'main',
+            questions: List.generate(
+              int.parse(_numberOfQuestionsController.text),
+              (index) => Question(
+                id: 'q${index + 1}',
+                bubbles: List.generate(
+                  int.parse(_optionsController.text),
+                  (optionIndex) => BubblePosition(
+                    x: 30 + (optionIndex * 22),
+                    y: 40 + (index * 22),
+                    value: String.fromCharCode('A'.codeUnitAt(0) + optionIndex),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
         questionsPerRow: int.parse(_questionsPerRowController.text),
         bubbleSize: 16.0, // Reduced size for better performance
         bubbleSpacing: 6.0,
@@ -73,72 +115,103 @@ class _BubbleSheetGeneratorState extends State<BubbleSheetGenerator> {
         ),
       );
 
-      // Create PDF document with optimized settings
-      final pdf = pw.Document(
-        compress: true,
-        version: PdfVersion.pdf_1_5,
-        pageMode: PdfPageMode.outlines,
-      );
+      // Generate PDF in chunks
+      for (var i = 0; i < config.sections[0].questions.length; i += 25) {
+        final endIndex = (i + 25 < config.sections[0].questions.length) ? i + 25 : config.sections[0].questions.length;
+        await _addQuestionsToPage(pdf, config, i, endIndex);
+      }
 
-      // Generate PDF content in chunks
-      await Future(() async {
-        pdf.addPage(
-          pw.Page(
-            pageFormat: PdfPageFormat.a4,
-            build: (context) {
-              return pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  // Header
-                  _buildHeader(config),
-                  pw.SizedBox(height: 10),
+      final pdfBytes = await pdf.save();
 
-                  // Student Information
-                  if (config.includeStudentInfo) ...[
-                    _buildStudentInfo(),
-                    pw.SizedBox(height: 15),
-                  ],
+      // Save locally for offline access
+      final examId = DateTime.now().millisecondsSinceEpoch.toString();
+      await _offlineStorage.saveBubbleSheet(examId, config);
+      await _offlineStorage.savePDFLocally(examId, pdfBytes);
 
-                  // Instructions
-                  _buildInstructions(config),
-                  pw.SizedBox(height: 15),
-
-                  // Answer Sheet with optimized rendering
-                  pw.Expanded(
-                    child: _buildAnswerSheet(config),
-                  ),
-                ],
-              );
-            },
-          ),
-        );
-      });
-
-      if (!mounted) return;
-
-      // Show PDF preview with optimized settings
+      // Print or preview
       await Printing.layoutPdf(
-        onLayout: (PdfPageFormat format) async => await pdf.save(),
+        onLayout: (_) async => pdfBytes,
         format: PdfPageFormat.a4,
-        usePrinterSettings: true,
-        dynamicLayout: true,
       );
     } catch (e) {
-      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
+        SnackBar(content: Text('Error generating PDF: ${e.toString()}')),
       );
     } finally {
       if (mounted) {
         setState(() {
-          _isLoading = false;
-          _isGeneratingPDF = false;
+          _isGenerating = false;
         });
       }
     }
   }
 
-  // Optimized header builder
+  Future<void> _scanBubbleSheet(File imageFile) async {
+    try {
+      final sheets = await _offlineStorage.getBubbleSheets();
+      if (sheets.isEmpty) {
+        throw Exception('No bubble sheet configurations found');
+      }
+
+      // Use the most recent configuration
+      final latestConfig = BubbleSheetConfig.fromJson(
+        sheets.entries.last.value as Map<String, dynamic>
+      );
+
+      final results = await _scanner.scanBubbleSheet(imageFile, latestConfig);
+      
+      if (results['processed'] == true) {
+        await _offlineStorage.saveScannedResult(
+          latestConfig.examCode,
+          results,
+        );
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Scan completed successfully')),
+        );
+      } else {
+        throw Exception(results['error'] ?? 'Unknown scanning error');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error scanning: ${e.toString()}')),
+      );
+    }
+  }
+
+  Future<void> _addQuestionsToPage(pw.Document pdf, BubbleSheetConfig config, int startQuestion, int endQuestion) async {
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        build: (context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              // Header
+              _buildHeader(config),
+              pw.SizedBox(height: 10),
+
+              // Student Information
+              if (config.includeStudentInfo) ...[
+                _buildStudentInfo(),
+                pw.SizedBox(height: 15),
+              ],
+
+              // Instructions
+              _buildInstructions(config),
+              pw.SizedBox(height: 15),
+
+              // Answer Sheet with optimized rendering
+              pw.Expanded(
+                child: _buildAnswerSheet(config, startQuestion, endQuestion),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   pw.Widget _buildHeader(BubbleSheetConfig config) {
     return pw.Column(
       children: [
@@ -164,7 +237,6 @@ class _BubbleSheetGeneratorState extends State<BubbleSheetGenerator> {
     );
   }
 
-  // Optimized student info builder
   pw.Widget _buildStudentInfo() {
     return pw.Container(
       padding: const pw.EdgeInsets.all(8),
@@ -182,7 +254,6 @@ class _BubbleSheetGeneratorState extends State<BubbleSheetGenerator> {
     );
   }
 
-  // Optimized instructions builder
   pw.Widget _buildInstructions(BubbleSheetConfig config) {
     return pw.Container(
       padding: const pw.EdgeInsets.all(8),
@@ -205,27 +276,15 @@ class _BubbleSheetGeneratorState extends State<BubbleSheetGenerator> {
     );
   }
 
-  // Optimized answer sheet builder with chunked rendering
-  pw.Widget _buildAnswerSheet(BubbleSheetConfig config) {
-    const int questionsPerChunk = 25; // Adjust based on performance
-    final int numberOfChunks = (config.numberOfQuestions / questionsPerChunk).ceil();
-
+  pw.Widget _buildAnswerSheet(BubbleSheetConfig config, int startQuestion, int endQuestion) {
     return pw.Column(
-      children: List.generate(numberOfChunks, (chunkIndex) {
-        final startQuestion = chunkIndex * questionsPerChunk;
-        final endQuestion = (startQuestion + questionsPerChunk).clamp(0, config.numberOfQuestions);
-
-        return pw.Column(
-          children: List.generate(
-            endQuestion - startQuestion,
-            (index) => _buildQuestionRow(startQuestion + index, config),
-          ),
-        );
-      }),
+      children: List.generate(
+        endQuestion - startQuestion,
+        (index) => _buildQuestionRow(startQuestion + index, config),
+      ),
     );
   }
 
-  // Optimized question row builder
   pw.Widget _buildQuestionRow(int questionIndex, BubbleSheetConfig config) {
     return pw.Padding(
       padding: const pw.EdgeInsets.symmetric(vertical: 2),
@@ -238,7 +297,7 @@ class _BubbleSheetGeneratorState extends State<BubbleSheetGenerator> {
           ),
           pw.SizedBox(width: 5),
           ...List.generate(
-            config.optionsPerQuestion,
+            config.sections[0].questions[questionIndex].bubbles.length,
             (optionIndex) => pw.Padding(
               padding: pw.EdgeInsets.only(right: config.bubbleSpacing),
               child: pw.Container(
@@ -250,7 +309,7 @@ class _BubbleSheetGeneratorState extends State<BubbleSheetGenerator> {
                 ),
                 child: pw.Center(
                   child: pw.Text(
-                    String.fromCharCode('A'.codeUnitAt(0) + optionIndex),
+                    config.sections[0].questions[questionIndex].bubbles[optionIndex].value,
                     style: const pw.TextStyle(fontSize: 8),
                   ),
                 ),
@@ -267,6 +326,12 @@ class _BubbleSheetGeneratorState extends State<BubbleSheetGenerator> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Bubble Sheet Generator'),
+        actions: [
+          IconButton(
+            icon: Icon(_isOffline ? Icons.cloud_off : Icons.cloud_done),
+            onPressed: () => _checkConnectivity(),
+          ),
+        ],
       ),
       body: Form(
         key: _formKey,
@@ -365,6 +430,15 @@ class _BubbleSheetGeneratorState extends State<BubbleSheetGenerator> {
                       : const Text('Generate Bubble Sheet'),
                 ),
               ),
+              if (_isOffline)
+                Container(
+                  padding: const EdgeInsets.all(8.0),
+                  color: Colors.orange.shade100,
+                  child: const Text(
+                    'Working in offline mode. Changes will be synced when online.',
+                    style: TextStyle(color: Colors.deepOrange),
+                  ),
+                ),
             ],
           ),
         ),
