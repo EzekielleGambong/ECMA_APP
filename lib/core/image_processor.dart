@@ -46,6 +46,30 @@ class ImageProcessor {
     return _detectBubbles(alignedImage, numQuestions, optionsPerQuestion, paperSize);
   }
 
+  // Processes a camera image and returns a list of boolean values indicating whether each bubble is filled.
+  static Future<List<List<bool>>> processImage(CameraImage cameraImage) async {
+    final img.Image? image = convertYUV420ToImage(cameraImage);
+    if (image == null) throw Exception('Failed to convert camera image');
+
+    // Convert to grayscale
+    final img.Image grayscale = img.grayscale(image);
+
+    // Apply adaptive threshold
+    final img.Image binaryImage = applyAdaptiveThreshold(grayscale);
+
+    // Detect corners
+    final List<Point> corners = _detectCorners(binaryImage);
+    if (corners.length != 4) {
+      throw Exception('Failed to detect answer sheet corners');
+    }
+
+    // Apply perspective transform
+    final img.Image alignedImage = _applyPerspectiveTransform(binaryImage, corners);
+
+    // Detect and analyze bubbles
+    return _detectBubbles(alignedImage, defaultQuestionsPerPage, defaultOptionsPerQuestion, 'A4');
+  }
+
   // Applies adaptive thresholding to a grayscale image.
   static img.Image applyAdaptiveThreshold(img.Image grayscale) {
     final img.Image output = img.Image.from(grayscale);
@@ -159,15 +183,6 @@ class ImageProcessor {
 
     _applyKernel(input, output, kernel);
     return output;
-  }
-
-  void processImage(img.Image output) {
-    // Fill the image with white color
-    for (int y = 0; y < output.height; y++) {
-      for (int x = 0; x < output.width; x++) {
-        output.setPixelRgba(x, y, 255, 255, 255, 255);
-      }
-    }
   }
 
   static void _applyKernel(img.Image input, img.Image output, List<List<int>> kernel) {

@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'dart:io';
+import '../models/bubble_sheet_config.dart';
 
 class CameraGuide extends StatefulWidget {
   final double screenWidth;
   final double screenHeight;
+  final GridSquareConfig gridConfig;
   
   const CameraGuide({
     Key? key, 
     required this.screenWidth,
     required this.screenHeight,
+    required this.gridConfig,
   }) : super(key: key);
 
   @override
@@ -21,6 +24,7 @@ class _CameraGuideState extends State<CameraGuide> {
   bool _isInitialized = false;
   late double _guideScale;
   late double _guideOpacity;
+  late GridSquareConfig _gridConfig;
   
   @override
   void initState() {
@@ -28,6 +32,13 @@ class _CameraGuideState extends State<CameraGuide> {
     _detectDevice();
     _guideScale = 0.8; // Default scale
     _guideOpacity = 0.5; // Default opacity
+    _gridConfig = GridSquareConfig(
+      size: 50,
+      numSquares: 3,
+      spacing: 10,
+      strokeWidth: 2,
+      cornerRadius: 5,
+    );
   }
 
   Future<void> _detectDevice() async {
@@ -90,6 +101,13 @@ class _CameraGuideState extends State<CameraGuide> {
         _buildTentGuides(),
         // Device-specific instructions
         _buildDeviceInstructions(),
+        // Grid square alignment guides
+        CustomPaint(
+          size: Size(widget.screenWidth, widget.screenHeight),
+          painter: CameraGuidePainter(
+            gridConfig: widget.gridConfig,
+          ),
+        ),
       ],
     );
   }
@@ -165,5 +183,63 @@ class _CameraGuideState extends State<CameraGuide> {
         ),
       ),
     );
+  }
+}
+
+class CameraGuidePainter extends CustomPainter {
+  final GridSquareConfig gridConfig;
+
+  CameraGuidePainter({
+    required this.gridConfig,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withAlpha(179)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = gridConfig.strokeWidth;
+
+    // Calculate grid square positions
+    final totalWidth = gridConfig.size * gridConfig.numSquares + 
+                      gridConfig.spacing * (gridConfig.numSquares - 1);
+    final startX = (size.width - totalWidth) / 2;
+    final startY = size.height * 0.2; // Position at 20% from top
+
+    // Draw grid squares
+    for (int i = 0; i < gridConfig.numSquares; i++) {
+      final x = startX + i * (gridConfig.size + gridConfig.spacing);
+      final rect = RRect.fromRectAndRadius(
+        Rect.fromLTWH(x, startY, gridConfig.size, gridConfig.size),
+        Radius.circular(gridConfig.cornerRadius),
+      );
+      canvas.drawRRect(rect, paint);
+    }
+
+    // Draw guide text
+    final textPainter = TextPainter(
+      text: const TextSpan(
+        text: 'Align grid squares with guides',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 14,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    textPainter.layout();
+    textPainter.paint(
+      canvas,
+      Offset(
+        (size.width - textPainter.width) / 2,
+        startY - 30,
+      ),
+    );
+  }
+
+  @override
+  bool shouldRepaint(CameraGuidePainter oldDelegate) {
+    return oldDelegate.gridConfig != gridConfig;
   }
 }

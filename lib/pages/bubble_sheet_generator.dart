@@ -3,13 +3,16 @@ import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'dart:ui';
 import 'package:printing/printing.dart';
 import '../models/bubble_sheet_config.dart';
 import '../services/analytics_service.dart';
 import '../utils/app_metrics.dart';
 
 class BubbleSheetGenerator extends StatefulWidget {
-  const BubbleSheetGenerator({Key? key}) : super(key: key);
+  final Key? key;
+
+  const BubbleSheetGenerator({this.key}) : super(key: key);
 
   @override
   State<BubbleSheetGenerator> createState() => _BubbleSheetGeneratorState();
@@ -208,7 +211,7 @@ class _BubbleSheetGeneratorState extends State<BubbleSheetGenerator> {
                     height: 12,
                     decoration: pw.BoxDecoration(
                       shape: pw.BoxShape.circle,
-                      color: PdfColor.fromHex('#000000'),
+                      color: PdfColors.black,
                     ),
                   ),
                   pw.SizedBox(width: 4),
@@ -232,9 +235,9 @@ class _BubbleSheetGeneratorState extends State<BubbleSheetGenerator> {
                       child: pw.Container(
                         width: 6,
                         height: 6,
-                        decoration: const pw.BoxDecoration(
+                        decoration: pw.BoxDecoration(
                           shape: pw.BoxShape.circle,
-                          color: PdfColor.fromHex('#000000'),
+                          color: PdfColors.black,
                         ),
                       ),
                     ),
@@ -261,6 +264,120 @@ class _BubbleSheetGeneratorState extends State<BubbleSheetGenerator> {
     );
   }
 
+  Future<Uint8List> generateBubbleSheet() async {
+    final pdf = pw.Document();
+    final config = BubbleSheetConfig(
+      schoolName: _schoolNameController.text,
+      examCode: _examCodeController.text,
+      sectionCode: _sectionCodeController.text,
+      examDate: DateTime.now(),
+      examSet: _selectedExamSet,
+      numberOfQuestions: int.parse(_numberOfQuestionsController.text),
+      optionsPerQuestion: int.parse(_optionsController.text),
+      questionsPerRow: int.parse(_questionsPerRowController.text),
+    );
+
+    pdf.addPage(
+      pw.Page(
+        build: (context) {
+          return pw.Stack(
+            children: [
+              pw.Positioned(
+                child: pw.Container(
+                  child: pw.CustomPaint(
+                    painter: (context, size) {
+                      final squares = config.getGridSquares();
+                      for (final square in squares) {
+                        context.setStrokeColor(PdfColors.black);
+                        context.setLineWidth(config.gridSquareConfig.strokeWidth);
+                        context.moveTo(square.left, square.top);
+                        context.lineTo(square.left + square.width, square.top);
+                        context.lineTo(square.left + square.width, square.top + square.height);
+                        context.lineTo(square.left, square.top + square.height);
+                        context.lineTo(square.left, square.top);
+                        context.strokePath();
+                      }
+                    },
+                  ),
+                ),
+              ),
+              pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.SizedBox(height: config.topMargin),
+                  ...List.generate(
+                    config.questionsPerColumn,
+                    (questionIndex) => pw.Row(
+                      children: [
+                        pw.SizedBox(width: config.leftMargin),
+                        pw.Text('${questionIndex + 1}.'),
+                        pw.SizedBox(width: 10),
+                        ...List.generate(
+                          config.optionsPerQuestion,
+                          (optionIndex) => pw.Padding(
+                            padding: pw.EdgeInsets.only(right: config.bubbleSpacing),
+                            child: pw.Container(
+                              width: config.bubbleRadius * 2,
+                              height: config.bubbleRadius * 2,
+                              decoration: pw.BoxDecoration(
+                                shape: pw.BoxShape.circle,
+                                border: pw.Border.all(width: 1),
+                              ),
+                              child: pw.Center(
+                                child: pw.Text(
+                                  String.fromCharCode('A'.codeUnitAt(0) + optionIndex),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              pw.Positioned(
+                bottom: 50,
+                left: config.leftMargin,
+                child: pw.Row(
+                  children: [
+                    pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text('Name:'),
+                        pw.Container(
+                          width: 200,
+                          decoration: pw.BoxDecoration(
+                            border: pw.Border(bottom: pw.BorderSide()),
+                          ),
+                        ),
+                      ],
+                    ),
+                    pw.SizedBox(width: 50),
+                    pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text('Signature:'),
+                        pw.Container(
+                          width: 200,
+                          decoration: pw.BoxDecoration(
+                            border: pw.Border(bottom: pw.BorderSide()),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    return pdf.save();
+  }
+
   Future<void> _generatePDF() async {
     if (!_metrics.isValid) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -269,131 +386,10 @@ class _BubbleSheetGeneratorState extends State<BubbleSheetGenerator> {
       return;
     }
 
-    final pdf = pw.Document();
-
-    pdf.addPage(
-      pw.MultiPage(
-        pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(20),
-        build: (pw.Context context) {
-          List<pw.Widget> widgets = [];
-
-          // Header
-          widgets.add(
-            pw.Center(
-              child: pw.Text(
-                _config!.schoolName.toUpperCase(),
-                style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
-              ),
-            ),
-          );
-          widgets.add(pw.SizedBox(height: 10));
-
-          // Student Information and Exam Info in a Row
-          widgets.add(
-            pw.Row(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                // Left side - Student Info
-                pw.Expanded(
-                  flex: 3,
-                  child: pw.Container(
-                    padding: const pw.EdgeInsets.all(8),
-                    decoration: pw.BoxDecoration(
-                      border: pw.Border.all(width: 0.5),
-                    ),
-                    child: pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        pw.Text('Step 1. Student Information',
-                            style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-                        pw.SizedBox(height: 8),
-                        _buildStudentIdBubbles(context),
-                      ],
-                    ),
-                  ),
-                ),
-                pw.SizedBox(width: 10),
-                // Right side - Exam Info
-                pw.Expanded(
-                  flex: 2,
-                  child: pw.Container(
-                    padding: const pw.EdgeInsets.all(8),
-                    decoration: pw.BoxDecoration(
-                      border: pw.Border.all(width: 0.5),
-                    ),
-                    child: pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        pw.Text('Step 2. Exam Information',
-                            style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-                        pw.SizedBox(height: 8),
-                        pw.Text('Section Code: ${_config!.sectionCode}'),
-                        pw.Text('Exam Code: ${_config!.examCode}'),
-                        pw.Text('Date: ${_config!.examDate.toString().split(' ')[0]}'),
-                        pw.Row(
-                          children: [
-                            pw.Text('Exam Set: '),
-                            pw.Container(
-                              width: 16,
-                              height: 16,
-                              decoration: pw.BoxDecoration(
-                                shape: pw.BoxShape.circle,
-                                border: pw.Border.all(width: 0.5),
-                              ),
-                              child: pw.Center(
-                                child: pw.Text(_config!.examSet),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-          widgets.add(pw.SizedBox(height: 10));
-
-          // Instructions
-          widgets.add(
-            pw.Container(
-              child: pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.Text('Step 3. Marking Instructions',
-                      style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-                  pw.SizedBox(height: 4),
-                  _buildInstructions(context),
-                ],
-              ),
-            ),
-          );
-          widgets.add(pw.SizedBox(height: 20));
-
-          // Answer Grid
-          widgets.add(_buildAnswerGrid(context));
-
-          // Footer
-          widgets.add(
-            pw.Container(
-              margin: const pw.EdgeInsets.only(top: 10),
-              child: pw.Text(
-                'This is a computer generated form. Photocopying will make this form INVALID.',
-                style: const pw.TextStyle(fontSize: 8),
-                textAlign: pw.TextAlign.center,
-              ),
-            ),
-          );
-
-          return widgets;
-        },
-      ),
-    );
+    final pdfBytes = await generateBubbleSheet();
 
     await Printing.layoutPdf(
-      onLayout: (PdfPageFormat format) async => pdf.save(),
+      onLayout: (PdfPageFormat format) async => pdfBytes,
     );
   }
 
@@ -535,18 +531,6 @@ class _BubbleSheetGeneratorState extends State<BubbleSheetGenerator> {
                       child: ElevatedButton(
                         onPressed: () {
                           if (_formKey.currentState?.validate() ?? false) {
-                            _config = BubbleSheetConfig(
-                              schoolName: _schoolNameController.text,
-                              examCode: _examCodeController.text,
-                              sectionCode: _sectionCodeController.text,
-                              examDate: DateTime.now(),
-                              examSet: _selectedExamSet,
-                              numberOfQuestions:
-                                  int.parse(_numberOfQuestionsController.text),
-                              optionsPerQuestion: int.parse(_optionsController.text),
-                              questionsPerRow:
-                                  int.parse(_questionsPerRowController.text),
-                            );
                             _generatePDF();
                           }
                         },
