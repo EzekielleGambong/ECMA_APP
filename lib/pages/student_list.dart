@@ -1,9 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'add_student.dart';
-import 'home.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-
+import 'add_student.dart';
+import 'home.dart';
 import 'analysisInfo.dart';
 
 class StudentList extends StatefulWidget {
@@ -15,6 +14,17 @@ class StudentList extends StatefulWidget {
 
 class _StudentListState extends State<StudentList> {
   final user = FirebaseAuth.instance.currentUser!;
+  late final Stream<QuerySnapshot> _studentsStream;
+  
+  @override
+  void initState() {
+    super.initState();
+    // Initialize stream once
+    _studentsStream = FirebaseFirestore.instance
+        .collection('students')
+        .where('user_email', isEqualTo: user.email)
+        .snapshots();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -25,78 +35,83 @@ class _StudentListState extends State<StudentList> {
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Logout',
-            onPressed: () {
-              FirebaseAuth.instance.signOut();
-              Navigator.push(
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+              if (!mounted) return;
+              Navigator.pushAndRemoveUntil(
                 context,
-                MaterialPageRoute(
-                  builder: (context) {
-                    return const HomePage();
-                  },
-                ),
+                MaterialPageRoute(builder: (context) => const HomePage()),
+                (route) => false,
               );
             },
           ),
         ],
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text('signed in as: ${user.email!}'),
-            Expanded(
-              child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('students')
-                    .where('user_email', isEqualTo: user.email)
-                    .snapshots(),
-                builder: (context, snapshot) {
-                  if (snapshot.hasError) {
-                    return Text('Error: ${snapshot.error}');
-                  }
-
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const CircularProgressIndicator();
-                  }
-
-                  final studentDocs = snapshot.data!.docs;
-
-                  return ListView.builder(
-                    itemCount: studentDocs.length,
-                    itemBuilder: (context, index) {
-                      final studentData = studentDocs[index].data() as Map<String, dynamic>;
-                      // Assuming each student has a 'subjects' field which is a list of maps
-                      final subjects = studentData['subjects'] as List<dynamic>? ?? [];
-                      return ExpansionTile(
-                        title: Text(studentData['student_name'] ?? 'N/A'),
-                        subtitle: Text(
-                            'ID: ${studentData['student_id'] ?? 'N/A'}, Course: ${studentData['student_course'] ?? 'N/A'}'),
-                        children: [
-                          for (final subject in subjects)
-                            SubjectListTile(
-                              subjectName: subject['subjectName'] ?? 'N/A',
-                              subjectCode: subject['subjectCode'] ?? 'N/A',
-                              subjectDescription: subject['subjectDescription'] ?? 'N/A',
-                            ),
-                        ],
-                      );
-                    },
-                  );
-                },
-              ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Text(
+              'Signed in as: ${user.email!}',
+              style: Theme.of(context).textTheme.bodyLarge,
             ),
-          ],
-        ),
+          ),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: _studentsStream,
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(child: Text('Error: ${snapshot.error}'));
+                }
+
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                final studentDocs = snapshot.data!.docs;
+                if (studentDocs.isEmpty) {
+                  return const Center(
+                    child: Text('No students found. Add some students to get started!'),
+                  );
+                }
+
+                return ListView.builder(
+                  itemCount: studentDocs.length,
+                  itemBuilder: (context, index) {
+                    final studentData = studentDocs[index].data() as Map<String, dynamic>;
+                    final subjects = List<Map<String, dynamic>>.from(
+                      studentData['subjects'] as List<dynamic>? ?? []
+                    );
+                    
+                    return Card(
+                      margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                      child: ExpansionTile(
+                        title: Text(
+                          studentData['student_name'] ?? 'N/A',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text(
+                          'ID: ${studentData['student_id'] ?? 'N/A'}\nCourse: ${studentData['student_course'] ?? 'N/A'}',
+                        ),
+                        children: subjects.map((subject) => SubjectListTile(
+                          subjectName: subject['subjectName'] ?? 'N/A',
+                          subjectCode: subject['subjectCode'] ?? 'N/A',
+                          subjectDescription: subject['subjectDescription'] ?? 'N/A',
+                        )).toList(),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           Navigator.push(
             context,
-            MaterialPageRoute(
-              builder: (context) {
-                return const AddStudent();
-              },
-            ),
+            MaterialPageRoute(builder: (context) => const AddStudent()),
           );
         },
         child: const Icon(Icons.add),
@@ -119,56 +134,11 @@ class SubjectListTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.all(8.0),
-      child: ListTile(
-        title: Text(subjectName),
-        subtitle: Text('$subjectCode\n$subjectDescription'),
-        trailing: IconButton(
-          icon: const Icon(Icons.delete),
-          onPressed: () {
-            // Show a confirmation dialog
-            showDialog(
-              context: context,
-              builder: (BuildContext context) {
-                return AlertDialog(
-                  title: const Text('Confirm Delete'),
-                  content: const Text('Are you sure you want to delete this subject?'),
-                  actions: <Widget>[
-                    TextButton(
-                      child: const Text('Cancel'),
-                      onPressed: () {
-                        Navigator.of(context).pop(); // Close the dialog
-                      },
-                    ),
-                    TextButton(
-                      child: const Text('Delete'),
-                      onPressed: () {
-                        // TODO: Implement delete functionality
-                        // This is where you would delete the subject from the database
-                        // After deleting, you might want to refresh the list of subjects
-                        Navigator.of(context).pop(); // Close the dialog
-                      },
-                    ),
-                  ],
-                );
-              },
-            );
-          },
-        ),
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) {
-                return AnalysisInfo(
-                  subjectName: subjectName, analysisId: '',
-                );
-              },
-            ),
-          );
-        },
-      ),
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 32.0),
+      title: Text(subjectName),
+      subtitle: Text('$subjectCode\n$subjectDescription'),
+      isThreeLine: true,
     );
   }
 }
