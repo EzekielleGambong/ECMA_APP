@@ -8,35 +8,40 @@ import 'dart:io';
 import '../core/image_processor.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import '../widgets/camera_guide.dart'; // Added import statement
+import '../widgets/camera_guide.dart';
+import '../models/bubble_sheet_config.dart';
 
 class ScannerPage extends StatefulWidget {
   const ScannerPage({Key? key}) : super(key: key);
 
   @override
-  _ScannerPageState createState() => _ScannerPageState();
+  State<ScannerPage> createState() => _ScannerPageState();
 }
 
 class _ScannerPageState extends State<ScannerPage> {
   CameraController? _controller;
-  bool _isProcessing = false;
-  bool _isSheetDetected = false;
-  Rect? _sheetRect; // To store the detected sheet's boundaries
-  img.Image? _lastImage; // Store the last captured image
-  String _selectedPaperSize = 'A4'; // Default paper size
-  int _numQuestions = ImageProcessor.defaultQuestionsPerPage;
-  int _numOptions = ImageProcessor.defaultOptionsPerQuestion;
-  final List<List<List<bool>>> _allScanResults = []; // Store all scan results for analysis
-  AnswerKey? _selectedAnswerKey;
+  final ImageProcessor _imageProcessor = ImageProcessor();
   final _firestore = FirebaseFirestore.instance;
   final _storage = FirebaseStorage.instance;
 
-  // Placeholder for the answer key. In a real app, this would come from user input.
-  // Each inner list represents the correct options for a question (true if correct, false otherwise).
-  final List<List<bool>> _answerKey = List.generate(
-    ImageProcessor.defaultQuestionsPerPage,
-    (_) => List.generate(ImageProcessor.defaultOptionsPerQuestion, (index) => index == 0),
-  );
+  // Make fields final where possible
+  final int _numOptions = ImageProcessor.defaultOptionsPerQuestion;
+  int _numQuestions = ImageProcessor.defaultQuestionsPerPage;
+  String _selectedPaperSize = 'A4';
+  AnswerKey? _selectedAnswerKey;
+  bool _isProcessing = false;
+  bool _isSheetDetected = false;
+  Rect? _sheetRect;
+  final List<List<List<bool>>> _allScanResults = [];
+  img.Image? _lastImage;
+
+  // Default answer key structure
+  List<List<bool>> _defaultAnswerKey() {
+    return List.generate(
+      _numQuestions,
+      (_) => List.generate(_numOptions, (index) => index == 0),
+    );
+  }
 
   @override
   void initState() {
@@ -69,48 +74,47 @@ class _ScannerPageState extends State<ScannerPage> {
   }
 
   Future<void> _processCameraImage(CameraImage cameraImage) async {
-    img.Image? image = ImageProcessor.convertYUV420ToImage(cameraImage);
-    if (image == null) {
-      _isProcessing = false;
-      return;
-    }
+    if (!mounted) return;
 
     setState(() {
-      _lastImage = image;
+      _isProcessing = true;
     });
 
-    // Apply Canny edge detection to find edges in the image
-    img.Image edges = ImageProcessor.applyCannyEdgeDetection(image);
+    try {
+      final results = await ImageProcessor.processImage(cameraImage);
+      if (results != null && results.isNotEmpty) {
+        final answerKey = _selectedAnswerKey?.answers ?? _defaultAnswerKey();
+        _allScanResults.add(results);
 
-    // Find contours based on the detected edges
-    List<Point> contours = ImageProcessor.findContours(edges);
-
-    // Detect the answer sheet's ROI (Region of Interest)
-    Rect? sheetRect = _detectAnswerSheet(contours, Size(image.width.toDouble(), image.height.toDouble()));
-
-    if (sheetRect != null) {
-      // Detect bubbles within the detected answer sheet's ROI
-      List<List<bool>> results = await _detectBubblesInROI(image, sheetRect);
-
-      // Calculate the raw score
-      int score = _calculateScore(results);
-
-      // Handle the scan results
-      _handleScanResults(results, score);
-
-      // Store the results for later analysis
-      _allScanResults.add(results);
+        // Calculate score based on answer key
+        final score = _calculateScore(results);
+        await _handleScanResults(results, score);
+      }
+    } catch (e) {
+      debugPrint('Error processing image: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+      }
     }
+  }
 
-    if (mounted) {
-      setState(() {
-        _isSheetDetected = sheetRect != null;
-        _sheetRect = sheetRect;
-        _isProcessing = false;
-      });
-    } else {
-      _isProcessing = false;
+  int _calculateScore(List<List<bool>> results) {
+    if (_selectedAnswerKey == null) return 0;
+
+    int score = 0;
+    final answers = _selectedAnswerKey!.answers;
+
+    for (int i = 0; i < results.length && i < answers.length; i++) {
+      final studentAnswer = results[i];
+      final correctAnswer = answers[i];
+      if (studentAnswer.toString() == correctAnswer) {
+        score++;
+      }
     }
+    return score;
   }
 
   // Detects the answer sheet within the contours found in the camera image.
@@ -162,14 +166,18 @@ class _ScannerPageState extends State<ScannerPage> {
   }
 
   // Applies the Douglas-Peucker algorithm to simplify a list of points (polygon approximation).
-  void _douglasPeucker(List<Point> points, int startIndex, double epsilon, List<Point> result) {
+  void _douglasPeucker(
+      List<Point> points, int startIndex, double epsilon, List<Point> result) {
     // Find the point with the maximum distance from the line between the start and end points
     double dmax = 0;
     int index = startIndex;
     int endIndex = (startIndex + points.length - 1) % points.length;
 
-    for (int i = (startIndex + 1) % points.length; i != endIndex; i = (i + 1) % points.length) {
-      double d = _perpendicularDistance(points[i], points[startIndex], points[endIndex]);
+    for (int i = (startIndex + 1) % points.length;
+        i != endIndex;
+        i = (i + 1) % points.length) {
+      double d = _perpendicularDistance(
+          points[i], points[startIndex], points[endIndex]);
       if (d > dmax) {
         index = i;
         dmax = d;
@@ -190,9 +198,12 @@ class _ScannerPageState extends State<ScannerPage> {
 
   // Calculates the perpendicular distance of a point from a line segment.
   double _perpendicularDistance(Point p, Point lineStart, Point lineEnd) {
-    double area =
-        ((lineEnd.x - lineStart.x) * (p.y - lineStart.y) - (lineEnd.y - lineStart.y) * (p.x - lineStart.x)).abs().toDouble();
-    double bottom = math.sqrt(math.pow(lineEnd.x - lineStart.x, 2) + math.pow(lineEnd.y - lineStart.y, 2));
+    double area = ((lineEnd.x - lineStart.x) * (p.y - lineStart.y) -
+            (lineEnd.y - lineStart.y) * (p.x - lineStart.x))
+        .abs()
+        .toDouble();
+    double bottom = math.sqrt(math.pow(lineEnd.x - lineStart.x, 2) +
+        math.pow(lineEnd.y - lineStart.y, 2));
     return area / bottom;
   }
 
@@ -229,11 +240,13 @@ class _ScannerPageState extends State<ScannerPage> {
       }
     }
 
-    return Rect.fromLTRB(minX.toDouble(), minY.toDouble(), maxX.toDouble(), maxY.toDouble());
+    return Rect.fromLTRB(
+        minX.toDouble(), minY.toDouble(), maxX.toDouble(), maxY.toDouble());
   }
 
   // Detects filled bubbles within a specified region of interest (ROI) in the image.
-  Future<List<List<bool>>> _detectBubblesInROI(img.Image image, Rect roi) async {
+  Future<List<List<bool>>> _detectBubblesInROI(
+      img.Image image, Rect roi) async {
     // Extract the ROI from the image
     img.Image croppedImage = img.copyCrop(
       image,
@@ -248,13 +261,14 @@ class _ScannerPageState extends State<ScannerPage> {
     img.Image binaryImage = ImageProcessor.applyAdaptiveThreshold(grayscale);
 
     // Detect bubbles in the cropped image, passing the number of questions, options, and paper size
-    return ImageProcessor.detectBubbles(binaryImage, _numQuestions, _numOptions);
+    return ImageProcessor.detectBubbles(
+        binaryImage, _numQuestions, _numOptions);
   }
 
   // handles the scan results
-  void _handleScanResults(List<List<bool>> results, int score) {
+  Future<void> _handleScanResults(List<List<bool>> results, int score) async {
     if (mounted) {
-      showDialog(
+      await showDialog(
         context: context,
         builder: (context) => AlertDialog(
           title: const Text('Scan Results'),
@@ -266,10 +280,12 @@ class _ScannerPageState extends State<ScannerPage> {
                 for (int i = 0; i < results.length; i++)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4.0),
-                    child: Text('Question ${i + 1}: ${results[i].map((e) => e ? '1' : '0').join(', ')}'),
+                    child: Text(
+                        'Question ${i + 1}: ${results[i].map((e) => e ? '1' : '0').join(', ')}'),
                   ),
                 const SizedBox(height: 16),
-                Text('Raw Score: $score', style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text('Raw Score: $score',
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
               ],
             ),
           ),
@@ -328,28 +344,7 @@ class _ScannerPageState extends State<ScannerPage> {
     }
   }
 
-  int _calculateScore(List<List<bool>> results) {
-    if (_selectedAnswerKey == null) return 0;
-
-    int score = 0;
-    for (int i = 0; i < results.length; i++) {
-      if (i < _selectedAnswerKey!.answers.length) {
-        if (_selectedAnswerKey!.bonusQuestions[i]) {
-          // Bonus question - any answer is correct
-          score++;
-        } else {
-          // Regular question - check against answer key
-          int correctAnswer = _selectedAnswerKey!.answers[i].codeUnitAt(0) - 'A'.codeUnitAt(0);
-          if (results[i][correctAnswer]) {
-            score++;
-          }
-        }
-      }
-    }
-    return score;
-  }
-
-  void _showItemAnalysis() {
+  Future<void> _showItemAnalysis() async {
     if (_allScanResults.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -359,18 +354,23 @@ class _ScannerPageState extends State<ScannerPage> {
     }
 
     // Calculate statistics
-    List<Map<String, dynamic>> questionStats = List.generate(_numQuestions, (index) {
+    List<Map<String, dynamic>> questionStats =
+        List.generate(_numQuestions, (index) {
       int correct = 0;
       Map<int, int> incorrectDistribution = {};
 
-      for (var result in _allScanResults) {
+      for (var resultList in _allScanResults) {
+        final result = resultList;
         if (index < result.length) {
           bool isCorrect = false;
-          if (_selectedAnswerKey != null && index < _selectedAnswerKey!.answers.length) {
+          if (_selectedAnswerKey != null &&
+              index < _selectedAnswerKey!.answers.length) {
             if (_selectedAnswerKey!.bonusQuestions[index]) {
               isCorrect = true;
             } else {
-              int correctAnswer = _selectedAnswerKey!.answers[index].codeUnitAt(0) - 'A'.codeUnitAt(0);
+              final correctAnswer =
+                  _selectedAnswerKey!.answers[index].codeUnitAt(0) -
+                      'A'.codeUnitAt(0);
               isCorrect = result[index][correctAnswer];
             }
           }
@@ -399,7 +399,7 @@ class _ScannerPageState extends State<ScannerPage> {
     // Sort questions by difficulty
     questionStats.sort((a, b) => b['difficulty'].compareTo(a['difficulty']));
     if (!mounted) return;
-    showDialog(
+    await showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Item Analysis'),
@@ -420,14 +420,15 @@ class _ScannerPageState extends State<ScannerPage> {
                     ),
                     Text('Correct: ${stat['correctCount']}'),
                     Text('Incorrect: ${stat['incorrectCount']}'),
-                    Text('Difficulty: ${(stat['difficulty'] * 100).toStringAsFixed(1)}%'),
+                    Text(
+                        'Difficulty: ${(stat['difficulty'] * 100).toStringAsFixed(1)}%'),
                     if (stat['incorrectDistribution'].isNotEmpty)
                       Text('Incorrect Answers: ' +
                           stat['incorrectDistribution']
                               .entries
                               .map((e) =>
-                                  '${String.fromCharCode(e.key + 'A'.codeUnitAt(0))}: ${e.value}')
-                              .join(', ')),
+                                  '${String.fromCharCode(e.key + 'A'.codeUnitAt(0))}:${e.value}')
+                              .join(';')),
                     const Divider(),
                   ],
                 );
@@ -452,92 +453,116 @@ class _ScannerPageState extends State<ScannerPage> {
   Future<void> _exportAnalysis(List<Map<String, dynamic>> stats) async {
     try {
       final directory = await getApplicationDocumentsDirectory();
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final file = File('${directory.path}/analysis_$timestamp.csv');
-
+      final file = File('${directory.path}/item_analysis.csv');
       final buffer = StringBuffer();
-      buffer.writeln('Question,Correct,Incorrect,Difficulty,Incorrect Distribution');
 
-      for (var stat in stats) {
+      // Write CSV header
+      buffer.writeln(
+          'Question,Correct,Incorrect,Difficulty,Incorrect Distribution');
+
+      // Write data rows
+      for (final stat in stats) {
         buffer.write('${stat['questionNumber']},');
         buffer.write('${stat['correctCount']},');
         buffer.write('${stat['incorrectCount']},');
         buffer.write('${(stat['difficulty'] * 100).toStringAsFixed(1)}%,');
         buffer.writeln(stat['incorrectDistribution']
             .entries
-            .map((e) => '${String.fromCharCode(e.key + 'A'.codeUnitAt(0))}:${e.value}')
+            .map((e) =>
+                '${String.fromCharCode(e.key + 'A'.codeUnitAt(0))}:${e.value}')
             .join(';'));
       }
 
       await file.writeAsString(buffer.toString());
+
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+
+      final scaffoldMessenger = ScaffoldMessenger.of(context);
+      scaffoldMessenger.showSnackBar(
         SnackBar(content: Text('Analysis exported to ${file.path}')),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+
+      final scaffoldMessenger = ScaffoldMessenger.of(context);
+      scaffoldMessenger.showSnackBar(
         SnackBar(content: Text('Error exporting analysis: $e')),
       );
     }
   }
 
   Future<void> _selectAnswerKey(BuildContext context) async {
-    final result = await showDialog<AnswerKey>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Select Answer Key'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: StreamBuilder<QuerySnapshot>(
-            stream: _firestore.collection('answer_keys').snapshots(),
-            builder: (context, snapshot) {
-              if (!snapshot.hasData) {
-                return const CircularProgressIndicator();
-              }
+    final navigator = Navigator.of(context);
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
 
-              return ListView.builder(
-                shrinkWrap: true,
-                itemCount: snapshot.data!.docs.length,
-                itemBuilder: (context, index) {
-                  final doc = snapshot.data!.docs[index];
-                  final answerKey = AnswerKey.fromFirestore(doc);
-                  return ListTile(
-                    title: Text(answerKey.name),
-                    subtitle: Text('Questions: ${answerKey.answers.length}'),
-                    onTap: () {
-                      Navigator.of(context).pop(answerKey);
-                    },
-                  );
-                },
-              );
-            },
+    try {
+      final result = await showDialog<AnswerKey>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Select Answer Key'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: StreamBuilder<QuerySnapshot>(
+              stream: _firestore.collection('answer_keys').snapshots(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return const CircularProgressIndicator();
+                }
+
+                return ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: snapshot.data!.docs.length,
+                  itemBuilder: (context, index) {
+                    final doc = snapshot.data!.docs[index];
+                    final data = doc.data() as Map<String, dynamic>;
+                    final answerKey = AnswerKey(
+                      id: doc.id,
+                      name: data['name'] as String,
+                      answers: List<String>.from(data['answers']),
+                      bonusQuestions: List<bool>.from(data['bonusQuestions']),
+                    );
+                    return ListTile(
+                      title: Text(answerKey.name),
+                      subtitle: Text('Questions: ${answerKey.answers.length}'),
+                      onTap: () => navigator.pop(answerKey),
+                    );
+                  },
+                );
+              },
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                navigator.push(
+                  MaterialPageRoute(
+                    builder: (context) => const AnswerKeyManager(),
+                  ),
+                );
+              },
+              child: const Text('Create New'),
+            ),
+            TextButton(
+              onPressed: () => navigator.pop(),
+              child: const Text('Cancel'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) => const AnswerKeyManager(),
-                ),
-              );
-            },
-            child: const Text('Create New'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-        ],
-      ),
-    );
+      );
 
-    if (result != null) {
-      setState(() {
-        _selectedAnswerKey = result;
-        _numQuestions = result.answers.length;
-      });
+      if (!mounted) return;
+
+      if (result != null) {
+        setState(() {
+          _selectedAnswerKey = result;
+          _numQuestions = result.answers.length;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      scaffoldMessenger.showSnackBar(
+        SnackBar(content: Text('Error selecting answer key: $e')),
+      );
     }
   }
 
@@ -566,6 +591,8 @@ class _ScannerPageState extends State<ScannerPage> {
 
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Answer Sheet Scanner'),
@@ -583,109 +610,216 @@ class _ScannerPageState extends State<ScannerPage> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: _controller != null && _controller!.value.isInitialized
-                ? Stack(
-                    children: [
-                      CameraPreview(_controller!),
-                      CameraGuide(
-                        screenWidth: MediaQuery.of(context).size.width,
-                        screenHeight: MediaQuery.of(context).size.height,
-                      ),
-                      if (_isProcessing)
-                        Container(
-                          color: Colors.black54,
-                          child: const Center(
-                            child: CircularProgressIndicator(),
-                          ),
-                        ),
-                      if (_sheetRect != null)
-                        Container(
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                              color: _isSheetDetected ? Colors.green : Colors.red,
-                              width: 2.0,
-                            ),
-                          ),
-                          margin: EdgeInsets.fromLTRB(
-                            _sheetRect!.left,
-                            _sheetRect!.top,
-                            _controller!.value.previewSize!.width - _sheetRect!.right,
-                            _controller!.value.previewSize!.height - _sheetRect!.bottom,
-                          ),
-                        ),
-                    ],
-                  )
-                : const Center(child: CircularProgressIndicator()),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
+      body: _controller != null && _controller!.value.isInitialized
+          ? Stack(
               children: [
-                DropdownButtonFormField<String>(
-                  value: _selectedPaperSize,
-                  decoration: const InputDecoration(
-                    labelText: 'Paper Size',
-                    border: OutlineInputBorder(),
+                // Full screen camera preview
+                SizedBox(
+                  width: screenSize.width,
+                  height: screenSize.height,
+                  child: AspectRatio(
+                    aspectRatio: _controller!.value.aspectRatio,
+                    child: CameraPreview(_controller!),
                   ),
-                  items: ['A4', 'Letter']
-                      .map((size) => DropdownMenuItem(
-                            value: size,
-                            child: Text(size),
-                          ))
-                      .toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedPaperSize = value!;
-                    });
-                  },
                 ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  keyboardType: TextInputType.number,
-                  initialValue: _numQuestions.toString(),
-                  decoration: const InputDecoration(
-                    labelText: 'Number of Questions',
-                    border: OutlineInputBorder(),
+                // Camera guide overlay
+                CameraGuide(
+                  screenWidth: screenSize.width,
+                  screenHeight: screenSize.height - MediaQuery.of(context).padding.top,
+                  gridConfig: const GridSquareConfig(
+                    size: 50,
+                    numSquares: 3,
+                    spacing: 10,
+                    strokeWidth: 2,
+                    cornerRadius: 5,
                   ),
-                  onChanged: (value) {
-                    setState(() {
-                      _numQuestions = int.tryParse(value) ?? ImageProcessor.defaultQuestionsPerPage;
-                    });
-                  },
                 ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  keyboardType: TextInputType.number,
-                  initialValue: _numOptions.toString(),
-                  decoration: const InputDecoration(
-                    labelText: 'Number of Options per Question',
-                    border: OutlineInputBorder(),
+                // Sheet detection rectangle
+                if (_sheetRect != null)
+                  Positioned.fill(
+                    child: CustomPaint(
+                      painter: SheetRectPainter(
+                        rect: _sheetRect!,
+                        previewSize: _controller!.value.previewSize!,
+                        screenSize: screenSize,
+                        isDetected: _isSheetDetected,
+                      ),
+                    ),
                   ),
-                  onChanged: (value) {
-                    setState(() {
-                      _numOptions = int.tryParse(value) ?? ImageProcessor.defaultOptionsPerQuestion;
-                    });
-                  },
+                // Loading indicator
+                if (_isProcessing)
+                  Container(
+                    color: Colors.black.withAlpha(138),
+                    child: const Center(
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                // Bottom controls panel
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: Container(
+                    color: Colors.black.withAlpha(179),
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: DropdownButtonFormField<String>(
+                                value: _selectedPaperSize,
+                                dropdownColor: Colors.grey[800],
+                                style: const TextStyle(color: Colors.white),
+                                decoration: const InputDecoration(
+                                  labelText: 'Paper Size',
+                                  labelStyle: TextStyle(color: Colors.white),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderSide: BorderSide(color: Colors.white),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderSide: BorderSide(color: Colors.blue),
+                                  ),
+                                ),
+                                items: ['A4', 'Letter']
+                                    .map((size) => DropdownMenuItem(
+                                          value: size,
+                                          child: Text(size),
+                                        ))
+                                    .toList(),
+                                onChanged: (value) {
+                                  setState(() {
+                                    _selectedPaperSize = value!;
+                                  });
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: TextFormField(
+                                keyboardType: TextInputType.number,
+                                initialValue: _numQuestions.toString(),
+                                style: const TextStyle(color: Colors.white),
+                                decoration: const InputDecoration(
+                                  labelText: 'Questions',
+                                  labelStyle: TextStyle(color: Colors.white),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderSide: BorderSide(color: Colors.white),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderSide: BorderSide(color: Colors.blue),
+                                  ),
+                                ),
+                                onChanged: (value) {
+                                  setState(() {
+                                    _numQuestions = int.tryParse(value) ??
+                                        ImageProcessor.defaultQuestionsPerPage;
+                                  });
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: _saveImage,
+                                icon: const Icon(Icons.save),
+                                label: const Text('Save'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green,
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 12),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: _allScanResults.isNotEmpty
+                                    ? _showItemAnalysis
+                                    : null,
+                                icon: const Icon(Icons.analytics),
+                                label: const Text('Analysis'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.blue,
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 12),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: _saveImage,
-                  child: const Text('Save Image'),
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: _allScanResults.isNotEmpty ? _showItemAnalysis : null,
-                  child: const Text('Show Item Analysis'),
+                // Device info overlay
+                Positioned(
+                  top: 16,
+                  left: 16,
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withAlpha(179),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      'Hold phone parallel to paper\nAlign edges with guides',
+                      style: TextStyle(color: Colors.white, fontSize: 12),
+                    ),
+                  ),
                 ),
               ],
-            ),
-          ),
-        ],
-      ),
+            )
+          : const Center(child: CircularProgressIndicator()),
     );
+  }
+}
+
+// Custom painter for the sheet detection rectangle
+class SheetRectPainter extends CustomPainter {
+  final Rect rect;
+  final Size previewSize;
+  final Size screenSize;
+  final bool isDetected;
+
+  SheetRectPainter({
+    required this.rect,
+    required this.previewSize,
+    required this.screenSize,
+    required this.isDetected,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = isDetected ? Colors.green : Colors.red
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0;
+
+    final scaleX = screenSize.width / previewSize.width;
+    final scaleY = screenSize.height / previewSize.height;
+
+    final scaledRect = Rect.fromLTRB(
+      rect.left * scaleX,
+      rect.top * scaleY,
+      rect.right * scaleX,
+      rect.bottom * scaleY,
+    );
+
+    canvas.drawRect(scaledRect, paint);
+  }
+
+  @override
+  bool shouldRepaint(SheetRectPainter oldDelegate) {
+    return rect != oldDelegate.rect || isDetected != oldDelegate.isDetected;
   }
 }
 
@@ -695,14 +829,20 @@ class AnswerKey {
   final List<String> answers;
   final List<bool> bonusQuestions;
 
-  AnswerKey({required this.id, required this.name, required this.answers, required this.bonusQuestions});
+  const AnswerKey({
+    required this.id,
+    required this.name,
+    required this.answers,
+    required this.bonusQuestions,
+  });
 
   factory AnswerKey.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
     return AnswerKey(
       id: doc.id,
-      name: doc['name'],
-      answers: List<String>.from(doc['answers']),
-      bonusQuestions: List<bool>.from(doc['bonusQuestions']),
+      name: data['name'] as String,
+      answers: List<String>.from(data['answers']),
+      bonusQuestions: List<bool>.from(data['bonusQuestions']),
     );
   }
 }
@@ -711,7 +851,7 @@ class AnswerKeyManager extends StatefulWidget {
   const AnswerKeyManager({Key? key}) : super(key: key);
 
   @override
-  _AnswerKeyManagerState createState() => _AnswerKeyManagerState();
+  State<AnswerKeyManager> createState() => _AnswerKeyManagerState();
 }
 
 class _AnswerKeyManagerState extends State<AnswerKeyManager> {
@@ -764,6 +904,9 @@ class _AnswerKeyManagerState extends State<AnswerKeyManager> {
   }
 
   Future<void> _createAnswerKey() async {
+    if (!mounted) return;
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+
     try {
       await _firestore.collection('answer_keys').add({
         'name': _name,
@@ -771,11 +914,11 @@ class _AnswerKeyManagerState extends State<AnswerKeyManager> {
         'bonusQuestions': _bonusQuestions,
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
+      scaffoldMessenger.showSnackBar(
         const SnackBar(content: Text('Answer key created successfully')),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      scaffoldMessenger.showSnackBar(
         SnackBar(content: Text('Error creating answer key: $e')),
       );
     }
