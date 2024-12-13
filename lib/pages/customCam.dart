@@ -6,17 +6,17 @@ import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
 
 class CustomCam extends StatefulWidget {
-  const CustomCam({Key? key}) : super(key: key);
+  const CustomCam({super.key});
 
   @override
-  CustomCamState createState() => CustomCamState();
+  State<CustomCam> createState() => CustomCamState();
 }
 
 class CustomCamState extends State<CustomCam> with WidgetsBindingObserver {
   CameraController? _controller;
-  List<CameraDescription> cameras = [];
-  bool isInitialized = false;
-  bool isProcessing = false;
+  final List<CameraDescription> _cameras = [];
+  bool _isInitialized = false;
+  bool _isProcessing = false;
   double _minAvailableZoom = 1.0;
   double _maxAvailableZoom = 1.0;
   double _currentZoom = 1.0;
@@ -30,7 +30,7 @@ class CustomCamState extends State<CustomCam> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    initializeCamera();
+    _initializeCamera();
   }
 
   @override
@@ -51,13 +51,13 @@ class CustomCamState extends State<CustomCam> with WidgetsBindingObserver {
     if (state == AppLifecycleState.inactive) {
       cameraController.dispose();
     } else if (state == AppLifecycleState.resumed) {
-      initializeCamera();
+      _initializeCamera();
     }
   }
 
-  Future<void> initializeCamera() async {
+  Future<void> _initializeCamera() async {
     try {
-      cameras = await availableCameras();
+      final cameras = await availableCameras();
       if (cameras.isEmpty) {
         _showError('No cameras found');
         return;
@@ -90,7 +90,7 @@ class CustomCamState extends State<CustomCam> with WidgetsBindingObserver {
       if (!mounted) return;
       
       setState(() {
-        isInitialized = true;
+        _isInitialized = true;
       });
     } catch (e) {
       _showError('Error initializing camera: $e');
@@ -144,10 +144,10 @@ class CustomCamState extends State<CustomCam> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> takePicture() async {
-    if (!isInitialized || _controller == null || isProcessing) return;
+  Future<void> _takePicture() async {
+    if (!_isInitialized || _controller == null || _isProcessing) return;
 
-    setState(() => isProcessing = true);
+    setState(() => _isProcessing = true);
 
     try {
       final XFile image = await _controller!.takePicture();
@@ -161,7 +161,7 @@ class CustomCamState extends State<CustomCam> with WidgetsBindingObserver {
     } catch (e) {
       _showError('Error taking picture: $e');
     } finally {
-      if (mounted) setState(() => isProcessing = false);
+      if (mounted) setState(() => _isProcessing = false);
     }
   }
 
@@ -191,7 +191,7 @@ class CustomCamState extends State<CustomCam> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    if(!isInitialized || _controller == null) {
+    if(!_isInitialized || _controller == null) {
       return const Scaffold(
         backgroundColor: Colors.black,
         body: Center(
@@ -245,7 +245,7 @@ class CustomCamState extends State<CustomCam> with WidgetsBindingObserver {
               right: 0,
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                color: Colors.black45,
+                color: Colors.black.withAlpha(115),
                 child: const Text(
                   'Align Answer Sheet Within Frame',
                   textAlign: TextAlign.center,
@@ -291,7 +291,7 @@ class CustomCamState extends State<CustomCam> with WidgetsBindingObserver {
                       ),
                     ),
                     GestureDetector(
-                      onTap: takePicture,
+                      onTap: _takePicture,
                       child: Container(
                         height: 80,
                         width: 80,
@@ -303,7 +303,7 @@ class CustomCamState extends State<CustomCam> with WidgetsBindingObserver {
                           ),
                         ),
                         child: Center(
-                          child: isProcessing
+                          child: _isProcessing
                             ? const CircularProgressIndicator(color: Colors.white)
                             : const Icon(
                                 Icons.camera,
@@ -316,7 +316,7 @@ class CustomCamState extends State<CustomCam> with WidgetsBindingObserver {
                     // Exposure control
                     IconButton(
                       onPressed: () async {
-                        _currentExposureOffset = await showDialog(
+                        final newExposure = await showDialog<double>(
                           context: context,
                           builder: (context) => ExposureDialog(
                             currentExposure: _currentExposureOffset,
@@ -327,7 +327,10 @@ class CustomCamState extends State<CustomCam> with WidgetsBindingObserver {
                               setState(() => _currentExposureOffset = value);
                             },
                           ),
-                        ) ?? _currentExposureOffset;
+                        );
+                        if (newExposure != null) {
+                          _currentExposureOffset = newExposure;
+                        }
                       },
                       icon: const Icon(
                         Icons.exposure,
@@ -351,15 +354,15 @@ class ExposureDialog extends StatefulWidget {
   final double currentExposure;
   final double minExposure;
   final double maxExposure;
-  final Function(double) onChanged;
+  final ValueChanged<double> onChanged;
 
   const ExposureDialog({
-    Key? key,
+    super.key,
     required this.currentExposure,
     required this.minExposure,
     required this.maxExposure,
     required this.onChanged,
-  }) : super(key: key);
+  });
 
   @override
   State<ExposureDialog> createState() => _ExposureDialogState();
@@ -403,13 +406,12 @@ class GridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final Paint paint = Paint()
-      ..color = Colors.white.withOpacity(0.7)
+      ..color = Colors.white.withAlpha(179)
       ..strokeWidth = 2.0
       ..style = PaintingStyle.stroke;
 
-    // Draw corner boxes
     final double boxSize = size.width * 0.1;
-    final double padding = 20.0;
+    const double padding = 20.0;
 
     // Helper function to draw corner box with inner lines
     void drawCornerBox(Offset position) {
@@ -436,7 +438,7 @@ class GridPainter extends CustomPainter {
     drawCornerBox(Offset(size.width - boxSize - padding, size.height - boxSize - padding)); // Bottom-right
 
     // Draw alignment grid lines with reduced opacity
-    paint.color = Colors.white.withOpacity(0.3);
+    paint.color = Colors.white.withAlpha(77);
     paint.strokeWidth = 1.0;
 
     // Draw horizontal and vertical lines

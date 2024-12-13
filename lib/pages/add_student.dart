@@ -95,7 +95,7 @@ class _AddStudentState extends State<AddStudent> {
     // Replace 'YOUR_API_KEY' with your actual API key from a secure source
     const apiKey = 'AIzaSyBwQOMb7dwidhYKCitrxFgqKmmA0pmJfG8'; 
 
-    final model = GenerativeModel(model: 'gemini-pro-vision', apiKey: apiKey);
+    final model = GenerativeModel(model: 'gemini-2.0-flash-exp', apiKey: apiKey);
     final List<Content> contents = [];
     final imageBytes = await _pickedImage!.readAsBytes();
     contents.add(
