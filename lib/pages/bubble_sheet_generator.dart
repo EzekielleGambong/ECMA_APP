@@ -196,53 +196,56 @@ class _BubbleSheetGeneratorState extends State<BubbleSheetGenerator> {
             ],
           ),
           pw.Column(
-            children: [
-              pw.Text('Darken completely the\ncircle corresponding to\nyour answer',
-                  style: const pw.TextStyle(fontSize: 8),
-                  textAlign: pw.TextAlign.center),
-              pw.SizedBox(height: 4),
-              pw.Row(
-                children: [
-                  pw.Container(
-                    width: 12,
-                    height: 12,
-                    decoration: pw.BoxDecoration(
-                      shape: pw.BoxShape.circle,
-                      color: PdfColor.fromHex('#000000'),
-                    ),
-                  ),
-                  pw.SizedBox(width: 4),
-                  pw.Container(
-                    width: 12,
-                    height: 12,
-                    decoration: pw.BoxDecoration(
-                      shape: pw.BoxShape.circle,
-                      border: pw.Border.all(width: 0.5),
-                    ),
-                  ),
-                  pw.SizedBox(width: 4),
-                  pw.Container(
-                    width: 12,
-                    height: 12,
-                    decoration: pw.BoxDecoration(
-                      shape: pw.BoxShape.circle,
-                      border: pw.Border.all(width: 0.5),
-                    ),
-                    child: pw.Center(
-                      child: pw.Container(
-                        width: 6,
-                        height: 6,
-                        decoration: const pw.BoxDecoration(
-                          shape: pw.BoxShape.circle,
-                          color: PdfColor.fromHex('#000000'),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+  children: [
+    pw.Text(
+      'Darken completely the\ncircle corresponding to\nyour answer',
+      style: const pw.TextStyle(fontSize: 8),
+      textAlign: pw.TextAlign.center,
+    ),
+    pw.SizedBox(height: 4),
+    pw.Row(
+      children: [
+        pw.Container(
+          width: 12,
+          height: 12,
+          decoration: pw.BoxDecoration(
+            shape: pw.BoxShape.circle,
+            color: PdfColor.fromHex('#000000'),
           ),
+        ),
+        pw.SizedBox(width: 4),
+        pw.Container(
+          width: 12,
+          height: 12,
+          decoration: pw.BoxDecoration(
+            shape: pw.BoxShape.circle,
+            border: pw.Border.all(width: 0.5),
+          ),
+        ),
+        pw.SizedBox(width: 4),
+        pw.Container(
+          width: 12,
+          height: 12,
+          decoration: pw.BoxDecoration(
+            shape: pw.BoxShape.circle,
+            border: pw.Border.all(width: 0.5),
+          ),
+          child: pw.Center(
+            child: pw.Container(
+              width: 6,
+              height: 6,
+              decoration: pw.BoxDecoration(  // Removed 'const' here
+                shape: pw.BoxShape.circle,
+                color: PdfColor.fromHex('#000000'),
+              ),
+            ),
+          ),
+        ),
+      ],
+    ),
+  ],
+),
+
           pw.Column(
             children: [
               pw.Text('STRICTLY NO\nERASURES',
