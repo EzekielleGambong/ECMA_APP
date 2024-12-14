@@ -120,7 +120,10 @@ class BubbleSheetScanner {
         var selectedBubble = '';
         
         for (final bubble in question.bubbles) {
-          final brightness = _calculateBrightness(image, bubble.x, bubble.y);
+          // Calculate absolute pixel coordinates
+          final x = (bubble.x * image.width).toInt();
+          final y = (bubble.y * image.height).toInt();
+          final double brightness = _calculateBrightness(image, x, y);
           if (brightness > maxBrightness) {
             maxBrightness = brightness;
             selectedBubble = bubble.value;

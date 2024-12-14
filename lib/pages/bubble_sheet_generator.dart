@@ -88,8 +88,8 @@ class _BubbleSheetGeneratorState extends State<BubbleSheetGenerator> {
                 bubbles: List.generate(
                   int.parse(_optionsController.text),
                   (optionIndex) => BubblePosition(
-                    x: 30 + (optionIndex * 22),
-                    y: 40 + (index * 22),
+                    x: (30 + (optionIndex * 22)) / 500, // Example relative x position
+                    y: (40 + (index * 22)) / 700, // Example relative y position
                     value: String.fromCharCode('A'.codeUnitAt(0) + optionIndex),
                   ),
                 ),

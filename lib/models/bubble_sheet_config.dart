@@ -1,8 +1,8 @@
 import 'dart:ui';  // Add this import for Rect
 
 class BubblePosition {
-  final int x;
-  final int y;
+  final double x;
+  final double y;
   final String value;
 
   const BubblePosition({
@@ -18,8 +18,8 @@ class BubblePosition {
   };
 
   factory BubblePosition.fromJson(Map<String, dynamic> json) => BubblePosition(
-    x: json['x'] as int,
-    y: json['y'] as int,
+    x: json['x'] as double,
+    y: json['y'] as double,
     value: json['value'] as String,
   );
 }
