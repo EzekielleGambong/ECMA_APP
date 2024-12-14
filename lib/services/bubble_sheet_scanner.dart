@@ -138,9 +138,9 @@ class BubbleSheetScanner {
 
   double _calculateBrightness(img.Image image, int x, int y) {
     final pixel = image.getPixel(x, y);
-    final r = img.getRed(pixel);
-    final g = img.getGreen(pixel);
-    final b = img.getBlue(pixel);
+    final r = pixel.r;
+    final g = pixel.g;
+    final b = pixel.b;
     return (r + g + b) / (3 * 255); // Normalize to 0-1 range
   }
 

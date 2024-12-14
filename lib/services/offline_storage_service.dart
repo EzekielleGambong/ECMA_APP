@@ -52,7 +52,7 @@ class OfflineStorageService {
     if (!results.containsKey(examId)) {
       results[examId] = [];
     }
-    results[examId].add(result);
+    results[examId]?.add(result);
     await _prefs.setString(_scannedResultsKey, jsonEncode(results));
   }
 
