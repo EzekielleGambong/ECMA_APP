@@ -65,20 +65,10 @@ class _analysisListState extends State<analysisList> {
                     itemBuilder: (context, index) {
                       final analysisData = analysisDocs[index].data() as Map<String, dynamic>;
                       final analysisId = analysisDocs[index].id;
-                      return ListTile(
-                        title: Text(analysisData['analysis_name'] ?? 'N/A'),
-                        subtitle: Text('Subject: ${analysisData['subject_name'] ?? 'N/A'}'),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) {
-                                return AnalysisInfo(analysisId: analysisId, subjectName: analysisData['subject_name'] ?? 'N/A',);
-                              },
-                            ),
-                          );
-                        },
-                        // Add more fields as needed
+                      return SubjectListTile(
+                        analysisId: analysisId,
+                        analysisName: analysisData['analysis_name'] ?? 'N/A',
+                        subjectName: analysisData['subject_name'] ?? 'N/A',
                       );
                     },
                   );
@@ -105,25 +95,30 @@ class _analysisListState extends State<analysisList> {
   }
 }
 
-class SubjectListTile extends StatelessWidget {
+class SubjectListTile extends StatefulWidget {
+  final String analysisId;
+  final String analysisName;
   final String subjectName;
-  final String subjectCode;
-  final String subjectDescription;
 
   const SubjectListTile({
     super.key,
+    required this.analysisId,
+    required this.analysisName,
     required this.subjectName,
-    required this.subjectCode,
-    required this.subjectDescription,
   });
 
+  @override
+  State<SubjectListTile> createState() => _SubjectListTileState();
+}
+
+class _SubjectListTileState extends State<SubjectListTile> {
   @override
   Widget build(BuildContext context) {
     return Card(
       margin: const EdgeInsets.all(8.0),
       child: ListTile(
-        title: Text(subjectName),
-        subtitle: Text('$subjectCode\n$subjectDescription'),
+        title: Text(widget.analysisName),
+        subtitle: Text('Subject: ${widget.subjectName}'),
         trailing: IconButton(
           icon: const Icon(Icons.delete),
           onPressed: () {
@@ -133,7 +128,7 @@ class SubjectListTile extends StatelessWidget {
               builder: (BuildContext context) {
                 return AlertDialog(
                   title: const Text('Confirm Delete'),
-                  content: const Text('Are you sure you want to delete this subject?'),
+                  content: const Text('Are you sure you want to delete this analysis?'),
                   actions: <Widget>[
                     TextButton(
                       child: const Text('Cancel'),
@@ -143,11 +138,25 @@ class SubjectListTile extends StatelessWidget {
                     ),
                     TextButton(
                       child: const Text('Delete'),
-                      onPressed: () {
-                        // TODO: Implement delete functionality
-                        // This is where you would delete the subject from the database
-                        // After deleting, you might want to refresh the list of subjects
-                        Navigator.of(context).pop(); // Close the dialog
+                      onPressed: () async {
+                        // Delete the analysis from Firestore
+                        try {
+                          await FirebaseFirestore.instance
+                              .collection('exam_detailed_analyses')
+                              .doc(widget.analysisId)
+                              .delete();
+                          // After deleting, refresh the list of analyses
+                          setState(() {});
+                          Navigator.of(context).pop(); // Close the dialog
+                        } catch (e) {
+                          print('Error deleting analysis: $e');
+                          Navigator.of(context).pop(); // Close the dialog
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Failed to delete analysis.'),
+                            ),
+                          );
+                        }
                       },
                     ),
                   ],
@@ -162,7 +171,7 @@ class SubjectListTile extends StatelessWidget {
             MaterialPageRoute(
               builder: (context) {
                 return AnalysisInfo(
-                  subjectName: subjectName, analysisId: '',
+                  subjectName: widget.subjectName, analysisId: widget.analysisId,
                 );
               },
             ),

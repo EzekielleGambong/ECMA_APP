@@ -46,7 +46,7 @@ class BubbleSheetScanner {
       };
     } catch (e) {
       return {
-        'error': e.toString(),
+        'error': 'Error scanning bubble sheet: ${e.toString()}',
         'processed': false,
       };
     }
