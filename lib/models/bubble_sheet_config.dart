@@ -99,50 +99,81 @@ class GridSquareConfig {
   };
 }
 
+class CornerSquare {
+  final double x;
+  final double y;
+  final double size;
+
+  const CornerSquare({
+    required this.x,
+    required this.y,
+    this.size = 20.0,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'x': x,
+    'y': y,
+    'size': size,
+  };
+
+  factory CornerSquare.fromJson(Map<String, dynamic> json) => CornerSquare(
+    x: json['x'] as double,
+    y: json['y'] as double,
+    size: json['size'] as double? ?? 20.0,
+  );
+}
+
 class BubbleSheetConfig {
   final String schoolName;
   final String examCode;
-  final String? sectionCode;
+  final String sectionCode;
   final DateTime examDate;
   final String examSet;
   final List<Section> sections;
-  final bool includeStudentInfo;
-  final bool includeBarcode;
-  final String? customInstructions;
-  final double? fontSize;
-  final double? bubbleSize;
-  final int questionsPerRow;     
-  final int columnCount;         
-  final double topMargin;
-  final double leftMargin;
-  final double bubbleSpacing;
-  final double bubbleRadius;
-  final int questionsPerColumn;
-  final GridSquareConfig gridSquareConfig;
+  final int questionsPerRow;
+  final double bubbleSize;
+  final String studentName;
+  final String studentNumber;
+  final int totalQuestions;
+  final int numColumns;
+  final List<CornerSquare> cornerSquares;
 
-  BubbleSheetConfig({
+  const BubbleSheetConfig({
     required this.schoolName,
     required this.examCode,
-    this.sectionCode,
+    required this.sectionCode,
     required this.examDate,
     required this.examSet,
     required this.sections,
-    this.includeStudentInfo = true,
-    this.includeBarcode = true,
-    this.customInstructions,
-    this.fontSize = 12.0,
-    this.bubbleSize = 20.0,
-    this.questionsPerRow = 1,    
-    this.columnCount = 4,
-    this.topMargin = 50.0,
-    this.leftMargin = 50.0,
-    this.bubbleSpacing = 5.0,
-    this.bubbleRadius = 10.0,
-    this.questionsPerColumn = 25,        
-    this.gridSquareConfig = const GridSquareConfig(),
-  });
+    required this.questionsPerRow,
+    this.bubbleSize = 16.0,
+    this.studentName = '',
+    this.studentNumber = '',
+    required this.totalQuestions,
+    required this.numColumns,
+    List<CornerSquare>? cornerSquares,
+  }) : this.cornerSquares = cornerSquares ?? const [
+    CornerSquare(x: 0.05, y: 0.05),  // Top-left
+    CornerSquare(x: 0.95, y: 0.05),  // Top-right
+    CornerSquare(x: 0.05, y: 0.95),  // Bottom-left
+    CornerSquare(x: 0.95, y: 0.95),  // Bottom-right
+  ];
 
-  int get numberOfQuestions => sections.fold(0, (sum, section) => sum + section.questions.length);
+  factory BubbleSheetConfig.fromJson(Map<String, dynamic> json) => BubbleSheetConfig(
+    schoolName: json['schoolName'] as String,
+    examCode: json['examCode'] as String,
+    sectionCode: json['sectionCode'] as String,
+    examDate: DateTime.parse(json['examDate'] as String),
+    examSet: json['examSet'] as String,
+    sections: (json['sections'] as List).map((s) => Section.fromJson(s)).toList(),
+    questionsPerRow: json['questionsPerRow'] as int,
+    bubbleSize: json['bubbleSize']?.toDouble() ?? 16.0,
+    studentName: json['studentName'] as String? ?? '',
+    studentNumber: json['studentNumber'] as String? ?? '',
+    totalQuestions: json['totalQuestions'] as int,
+    numColumns: json['numColumns'] as int,
+    cornerSquares: (json['cornerSquares'] as List?)?.map((s) => CornerSquare.fromJson(s)).toList(),
+  );
 
   Map<String, dynamic> toJson() => {
     'schoolName': schoolName,
@@ -151,70 +182,20 @@ class BubbleSheetConfig {
     'examDate': examDate.toIso8601String(),
     'examSet': examSet,
     'sections': sections.map((s) => s.toJson()).toList(),
-    'includeStudentInfo': includeStudentInfo,
-    'includeBarcode': includeBarcode,
-    'customInstructions': customInstructions,
-    'fontSize': fontSize,
-    'bubbleSize': bubbleSize,
     'questionsPerRow': questionsPerRow,
-    'columnCount': columnCount,
-    'topMargin': topMargin,
-    'leftMargin': leftMargin,
-    'bubbleSpacing': bubbleSpacing,
-    'bubbleRadius': bubbleRadius,
-    'questionsPerColumn': questionsPerColumn,
-    'gridSquareConfig': gridSquareConfig.toJson(),
+    'bubbleSize': bubbleSize,
+    'studentName': studentName,
+    'studentNumber': studentNumber,
+    'totalQuestions': totalQuestions,
+    'numColumns': numColumns,
+    'cornerSquares': cornerSquares.map((s) => s.toJson()).toList(),
   };
 
-  factory BubbleSheetConfig.fromJson(Map<String, dynamic> json) => BubbleSheetConfig(
-    schoolName: json['schoolName'] as String,
-    examCode: json['examCode'] as String,
-    sectionCode: json['sectionCode'] as String?,
-    examDate: DateTime.parse(json['examDate'] as String),
-    examSet: json['examSet'] as String,
-    sections: (json['sections'] as List).map((s) => Section.fromJson(s)).toList(),
-    includeStudentInfo: json['includeStudentInfo'] as bool? ?? true,
-    includeBarcode: json['includeBarcode'] as bool? ?? true,
-    customInstructions: json['customInstructions'] as String?,
-    fontSize: json['fontSize']?.toDouble(),
-    bubbleSize: json['bubbleSize']?.toDouble(),
-    questionsPerRow: json['questionsPerRow'] as int? ?? 1,
-    columnCount: json['columnCount'] as int? ?? 4,
-    topMargin: json['topMargin']?.toDouble() ?? 50.0,
-    leftMargin: json['leftMargin']?.toDouble() ?? 50.0,
-    bubbleSpacing: json['bubbleSpacing']?.toDouble() ?? 5.0,
-    bubbleRadius: json['bubbleRadius']?.toDouble() ?? 10.0,
-    questionsPerColumn: json['questionsPerColumn'] as int? ?? 25,
-    gridSquareConfig: json['gridSquareConfig'] != null 
-      ? GridSquareConfig.fromJson(json['gridSquareConfig'])
-      : const GridSquareConfig(),
-  );
-
-  // Helper method to calculate positions
-  double getQuestionY(int questionIndex) {
-    return (questionIndex % questionsPerRow) * (bubbleSize ?? 20.0);
-  }
-
-  double getQuestionX(int questionIndex) {
-    return (questionIndex ~/ questionsPerRow) * (bubbleSize ?? 20.0) * 6;
-  }
-
-  // Calculate grid square positions
-  List<Rect> getGridSquares() {
-    final squares = <Rect>[];
-    final startX = (bubbleSize ?? 20.0) * 6 * questionsPerRow;
-    final startY = 0.0;
-
-    for (int i = 0; i < gridSquareConfig.numSquares; i++) {
-      final x = startX + i * (gridSquareConfig.size + gridSquareConfig.spacing);
-      squares.add(Rect.fromLTWH(
-        x,
-        startY,
-        gridSquareConfig.size,
-        gridSquareConfig.size,
-      ));
-    }
-
-    return squares;
+  // Calculate number of columns based on total questions
+  static int calculateColumns(int totalQuestions) {
+    if (totalQuestions <= 25) return 1;
+    if (totalQuestions <= 50) return 2;
+    if (totalQuestions <= 75) return 3;
+    return 4;
   }
 }

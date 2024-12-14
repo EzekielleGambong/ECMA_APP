@@ -72,54 +72,204 @@ class _BubbleSheetGeneratorState extends State<BubbleSheetGenerator> {
 
     try {
       final pdf = pw.Document();
+      final totalQuestions = int.parse(_numberOfQuestionsController.text);
+      final numColumns = BubbleSheetConfig.calculateColumns(totalQuestions);
+      final questionsPerColumn = (totalQuestions / numColumns).ceil();
+      
       final config = BubbleSheetConfig(
         schoolName: _schoolNameController.text,
         examCode: _examCodeController.text,
         sectionCode: _sectionCodeController.text,
         examDate: DateTime.now(),
         examSet: _selectedExamSet,
+        totalQuestions: totalQuestions,
+        numColumns: numColumns,
+        questionsPerRow: 1,
         sections: [
           Section(
             id: 'main',
             questions: List.generate(
-              int.parse(_numberOfQuestionsController.text),
+              totalQuestions,
               (index) => Question(
                 id: 'q${index + 1}',
                 bubbles: List.generate(
                   int.parse(_optionsController.text),
-                  (optionIndex) => BubblePosition(
-                    x: (30 + (optionIndex * 22)) / 500, // Example relative x position
-                    y: (40 + (index * 22)) / 700, // Example relative y position
-                    value: String.fromCharCode('A'.codeUnitAt(0) + optionIndex),
-                  ),
+                  (optionIndex) {
+                    final column = index ~/ questionsPerColumn;
+                    final row = index % questionsPerColumn;
+                    return BubblePosition(
+                      x: (50 + (column * 120) + (optionIndex * 20)) / 500,
+                      y: (150 + (row * 20)) / 700,
+                      value: String.fromCharCode('A'.codeUnitAt(0) + optionIndex),
+                    );
+                  },
                 ),
               ),
             ),
           ),
         ],
-        questionsPerRow: int.parse(_questionsPerRowController.text),
-        bubbleSize: 16.0, // Reduced size for better performance
-        bubbleSpacing: 6.0,
-        topMargin: 40.0,
-        leftMargin: 30.0,
-        fontSize: 10.0,
-        bubbleRadius: 8.0,
-        includeStudentInfo: true,
-        includeBarcode: false,
-        gridSquareConfig: const GridSquareConfig(
-          size: 16.0,
-          spacing: 4.0,
-          numSquares: 4,
-          cornerRadius: 2.0,
-          strokeWidth: 0.5,
-        ),
+        cornerSquares: [
+          CornerSquare(x: 0.05, y: 0.05, size: 10),
+          CornerSquare(x: 0.95, y: 0.05, size: 10),
+          CornerSquare(x: 0.05, y: 0.95, size: 10),
+          CornerSquare(x: 0.95, y: 0.95, size: 10),
+        ],
       );
 
-      // Generate PDF in chunks
-      for (var i = 0; i < config.sections[0].questions.length; i += 25) {
-        final endIndex = (i + 25 < config.sections[0].questions.length) ? i + 25 : config.sections[0].questions.length;
-        await _addQuestionsToPage(pdf, config, i, endIndex);
-      }
+      pdf.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          build: (pw.Context context) {
+            return pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                // Header
+                pw.Center(
+                  child: pw.Text(
+                    config.schoolName.toUpperCase(),
+                    style: pw.TextStyle(
+                      fontSize: 14,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                ),
+                pw.SizedBox(height: 10),
+                
+                // Student Information Section
+                pw.Container(
+                  padding: const pw.EdgeInsets.all(10),
+                  decoration: pw.BoxDecoration(
+                    border: pw.Border.all(),
+                  ),
+                  child: pw.Row(
+                    children: [
+                      pw.Expanded(
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Text('Name: _______________________'),
+                            pw.SizedBox(height: 5),
+                            pw.Text('Student Number: _____________'),
+                          ],
+                        ),
+                      ),
+                      pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text('Section Code: ${config.sectionCode}'),
+                          pw.Text('Exam Code: ${config.examCode}'),
+                          pw.Text('Date: ${config.examDate.toString().split(' ')[0]}'),
+                          pw.Text('Exam Set: ${config.examSet}'),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                pw.SizedBox(height: 20),
+                
+                // Instructions
+                pw.Container(
+                  padding: const pw.EdgeInsets.symmetric(vertical: 10),
+                  child: pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text('Use a number 2 pencil only'),
+                      pw.Text('Darken completely the circle'),
+                      pw.Text('STRICTLY NO ERASURES'),
+                    ],
+                  ),
+                ),
+                
+                // Answer Grid
+                pw.Container(
+                  padding: const pw.EdgeInsets.all(10),
+                  child: pw.Stack(
+                    children: [
+                      // Corner squares for scanning
+                      ...config.cornerSquares.map((corner) => pw.Positioned(
+                        left: corner.x * 500, // Adjust based on your page size
+                        top: corner.y * 700,  // Adjust based on your page size
+                        child: pw.Container(
+                          width: corner.size,
+                          height: corner.size,
+                          color: PdfColors.black,
+                        ),
+                      )),
+                      
+                      // Answer grid
+                      pw.Row(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: List.generate(
+                          config.numColumns,
+                          (columnIndex) {
+                            final startQuestion = columnIndex * questionsPerColumn;
+                            final endQuestion = (columnIndex + 1) * questionsPerColumn;
+                            return pw.Expanded(
+                              child: pw.Column(
+                                children: List.generate(
+                                  questionsPerColumn,
+                                  (rowIndex) {
+                                    final questionNumber = startQuestion + rowIndex + 1;
+                                    if (questionNumber > totalQuestions) return pw.Container();
+                                    return pw.Container(
+                                      height: 20,
+                                      child: pw.Row(
+                                        children: [
+                                          pw.Container(
+                                            width: 30,
+                                            alignment: pw.Alignment.centerRight,
+                                            child: pw.Text('$questionNumber.'),
+                                          ),
+                                          pw.Row(
+                                            mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
+                                            children: List.generate(
+                                              int.parse(_optionsController.text),
+                                              (optionIndex) => pw.Container(
+                                                width: 15,
+                                                height: 15,
+                                                decoration: pw.BoxDecoration(
+                                                  shape: pw.BoxShape.circle,
+                                                  border: pw.Border.all(),
+                                                ),
+                                                margin: const pw.EdgeInsets.symmetric(horizontal: 2),
+                                                child: pw.Center(
+                                                  child: pw.Text(
+                                                    String.fromCharCode('A'.codeUnitAt(0) + optionIndex),
+                                                    style: pw.TextStyle(fontSize: 8),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                
+                // Footer
+                pw.Positioned(
+                  bottom: 10,
+                  child: pw.Center(
+                    child: pw.Text(
+                      'This is a computer generated form. Photocopying will make this form INVALID.',
+                      style: pw.TextStyle(fontSize: 8),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      );
 
       final pdfBytes = await pdf.save();
 
@@ -177,148 +327,6 @@ class _BubbleSheetGeneratorState extends State<BubbleSheetGenerator> {
         SnackBar(content: Text('Error scanning: ${e.toString()}')),
       );
     }
-  }
-
-  Future<void> _addQuestionsToPage(pw.Document pdf, BubbleSheetConfig config, int startQuestion, int endQuestion) async {
-    pdf.addPage(
-      pw.Page(
-        pageFormat: PdfPageFormat.a4,
-        build: (context) {
-          return pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              // Header
-              _buildHeader(config),
-              pw.SizedBox(height: 10),
-
-              // Student Information
-              if (config.includeStudentInfo) ...[
-                _buildStudentInfo(),
-                pw.SizedBox(height: 15),
-              ],
-
-              // Instructions
-              _buildInstructions(config),
-              pw.SizedBox(height: 15),
-
-              // Answer Sheet with optimized rendering
-              pw.Expanded(
-                child: _buildAnswerSheet(config, startQuestion, endQuestion),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  pw.Widget _buildHeader(BubbleSheetConfig config) {
-    return pw.Column(
-      children: [
-        pw.Row(
-          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-          children: [
-            pw.Text(config.schoolName,
-                style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
-            pw.Text('Set ${config.examSet}',
-                style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
-          ],
-        ),
-        pw.SizedBox(height: 5),
-        pw.Row(
-          children: [
-            pw.Text('Exam: ${config.examCode}', style: const pw.TextStyle(fontSize: 10)),
-            pw.SizedBox(width: 15),
-            if (config.sectionCode?.isNotEmpty ?? false)
-              pw.Text('Section: ${config.sectionCode}', style: const pw.TextStyle(fontSize: 10)),
-          ],
-        ),
-      ],
-    );
-  }
-
-  pw.Widget _buildStudentInfo() {
-    return pw.Container(
-      padding: const pw.EdgeInsets.all(8),
-      decoration: pw.BoxDecoration(
-        border: pw.Border.all(width: 0.5),
-      ),
-      child: pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Text('Name: _________________________________', style: const pw.TextStyle(fontSize: 10)),
-          pw.SizedBox(height: 8),
-          pw.Text('ID: ___________________________________', style: const pw.TextStyle(fontSize: 10)),
-        ],
-      ),
-    );
-  }
-
-  pw.Widget _buildInstructions(BubbleSheetConfig config) {
-    return pw.Container(
-      padding: const pw.EdgeInsets.all(8),
-      decoration: pw.BoxDecoration(
-        border: pw.Border.all(width: 0.5),
-      ),
-      child: pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Text('Instructions:', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-          pw.SizedBox(height: 4),
-          pw.Text('• Use No. 2 pencil only', style: const pw.TextStyle(fontSize: 9)),
-          pw.Text('• Fill bubbles completely', style: const pw.TextStyle(fontSize: 9)),
-          pw.Text('• Erase completely to change', style: const pw.TextStyle(fontSize: 9)),
-          pw.Text('• No stray marks', style: const pw.TextStyle(fontSize: 9)),
-          if (config.customInstructions != null)
-            pw.Text(config.customInstructions!, style: const pw.TextStyle(fontSize: 9)),
-        ],
-      ),
-    );
-  }
-
-  pw.Widget _buildAnswerSheet(BubbleSheetConfig config, int startQuestion, int endQuestion) {
-    return pw.Column(
-      children: List.generate(
-        endQuestion - startQuestion,
-        (index) => _buildQuestionRow(startQuestion + index, config),
-      ),
-    );
-  }
-
-  pw.Widget _buildQuestionRow(int questionIndex, BubbleSheetConfig config) {
-    return pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(vertical: 2),
-      child: pw.Row(
-        children: [
-          pw.Container(
-            width: 25,
-            alignment: pw.Alignment.centerRight,
-            child: pw.Text('${questionIndex + 1}.', style: const pw.TextStyle(fontSize: 9)),
-          ),
-          pw.SizedBox(width: 5),
-          ...List.generate(
-            config.sections[0].questions[questionIndex].bubbles.length,
-            (optionIndex) => pw.Padding(
-              padding: pw.EdgeInsets.only(right: config.bubbleSpacing),
-              child: pw.Container(
-                width: config.bubbleRadius * 2,
-                height: config.bubbleRadius * 2,
-                decoration: pw.BoxDecoration(
-                  shape: pw.BoxShape.circle,
-                  border: pw.Border.all(width: 0.5),
-                ),
-                child: pw.Center(
-                  child: pw.Text(
-                    config.sections[0].questions[questionIndex].bubbles[optionIndex].value,
-                    style: const pw.TextStyle(fontSize: 8),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
