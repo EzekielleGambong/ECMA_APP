@@ -1,0 +1,39 @@
+graph LR
+    A[Start] --> B(Adaptive Thresholding);
+    B --> C[Local Mean:  mean = sum / count];
+    C --> D[Threshold: pixel < mean - c ? 0 : 255];
+    D --> E(Harris Corner Detection);
+    E --> F[Corner Response: R = (ixx * iyy - ixy * ixy) - k * ((ixx + iyy) * (ixx + iyy))];
+    F --> G(Perspective Transform);
+    G --> H[Transform Point: x' = (m00 * x + m01 * y + m02) / w, y' = (m10 * x + m11 * y + m12) / w, w = m20 * x + m21 * y + m22];
+    H --> I(Bubble Detection);
+    I --> J[Fill Ratio: fillRatio = darkPixels / (bubbleSize * bubbleSize)];
+    J --> K[Bubble Filled: fillRatio > threshold];
+    K --> L(Sobel Operators);
+    L --> M[Sobel X:  [-1, 0, 1], [-2, 0, 2], [-1, 0, 1]];
+    M --> N[Sobel Y:  [-1, -2, -1], [0, 0, 0], [1, 2, 1]];
+    N --> O(Canny Edge Detection);
+    O --> P[Gradient Magnitude: sqrt(ix * ix + iy * iy)];
+    P --> Q[Gradient Direction: atan2(iy, ix)];
+    Q --> R(Contour Finding);
+    R --> S(Raw Score Calculation);
+    S --> T[Score: sum of correct answers];
+    T --> U(Brightness Calculation);
+    U --> V[Brightness: (r + g + b) / (3 * 255)];
+    V --> W(Confidence Score Calculation);
+    W --> X[Overall Confidence: answeredQuestions / totalQuestions];
+    X --> Y[End];
+    
+    style B fill:#f9f,stroke:#333,stroke-width:2px
+    style E fill:#ccf,stroke:#333,stroke-width:2px
+    style G fill:#fcc,stroke:#333,stroke-width:2px
+    style I fill:#cfc,stroke:#333,stroke-width:2px
+    style L fill:#ffc,stroke:#333,stroke-width:2px
+    style O fill:#ccf,stroke:#333,stroke-width:2px
+    style R fill:#fcc,stroke:#333,stroke-width:2px
+    style S fill:#cfc,stroke:#333,stroke-width:2px
+    style U fill:#ffc,stroke:#333,stroke-width:2px
+    style W fill:#ccf,stroke:#333,stroke-width:2px
+    
+    classDef highlight fill:#f9f,stroke:#333,stroke-width:2px
+    class B,E,G,I,L,O,R,S,U,W highlight
